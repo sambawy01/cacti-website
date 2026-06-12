@@ -144,6 +144,8 @@ function doGet(e) {
         return jsonpResponse(callback, adminTogglePantryVisibility(parseInt(params.rowIndex), params.status));
       case 'archiveOrder':
         return jsonpResponse(callback, adminArchiveOrder(parseInt(params.rowIndex)));
+      case 'setOrderStatus':
+        return jsonpResponse(callback, orderSetStatus(parseInt(params.rowIndex), params.status));
       // ── Inventory (Stock) CRUD ──
       case 'getStock':
         return jsonpResponse(callback, inventoryGetAll());
@@ -799,6 +801,61 @@ function sendOrderDeclineEmail(orderInfo, openSlotLabels) {
   } catch (error) {
     Logger.log('Decline email failed: ' + error.toString());
   }
+}
+
+// ============ CAPACITY: ADMIN STATUS MANAGEMENT ============
+
+/**
+ * Admin-only. Sets the status of an Orders row and triggers side effects:
+ *  pending_approval → confirmed : kitchen calendar event + confirmation email
+ *  → declined                  : decline email with open alternatives
+ * Phase 2 adds status-update emails for preparing/out_for_delivery/delivered.
+ */
+function orderSetStatus(rowIndex, newStatus) {
+  if (ORDER_STATUSES.indexOf(newStatus) < 0) throw new Error('Invalid status: ' + newStatus);
+  var sheet = crmGetSheet('Orders');
+  var lastCol = sheet.getLastColumn();
+  var headers = sheet.getRange(1, 1, 1, lastCol).getValues()[0].map(function (h) {
+    return String(h).trim().toLowerCase().replace(/ /g, '_');
+  });
+  var statusCol = headers.indexOf('status');
+  if (statusCol < 0) throw new Error('Status column not found');
+  if (rowIndex < 2 || rowIndex > sheet.getLastRow()) throw new Error('Invalid row: ' + rowIndex);
+
+  var rowVals = sheet.getRange(rowIndex, 1, 1, lastCol).getValues()[0];
+  var row = {};
+  for (var j = 0; j < headers.length; j++) row[headers[j]] = rowVals[j];
+  var prevStatus = String(row.status);
+
+  sheet.getRange(rowIndex, statusCol + 1).setValue(newStatus);
+
+  var orderInfo = {
+    name: String(row.name || ''),
+    phone: String(row.phone || ''),
+    email: String(row.email || ''),
+    address: String(row.address || ''),
+    orderTotal: row.order_total || '',
+    orderSummary: String(row.order_summary || ''),
+    itemCount: Number(row.item_count) > 0 ? Number(row.item_count) : 1,
+    deliveryDate: String(row.delivery_date || ''),
+    deliverySlot: String(row.delivery_slot || ''),
+    trackingToken: String(row.tracking_token || ''),
+  };
+
+  if (newStatus === 'confirmed' && prevStatus === 'pending_approval') {
+    createKitchenEvent(orderInfo);
+    sendOrderConfirmationEmail(orderInfo);
+  } else if (newStatus === 'declined') {
+    var avail = orderGetAvailability().availability;
+    var openLabels = [];
+    for (var s = 0; s < avail.slots.length; s++) {
+      if (avail.slots[s].status === 'open') openLabels.push(slotLabel12h(avail.slots[s].time));
+    }
+    sendOrderDeclineEmail(orderInfo, openLabels);
+  }
+  // Phase 2 hook: status-update emails for preparing/out_for_delivery/delivered.
+
+  return { success: true, status: newStatus };
 }
 
 // ── CRM helper: get a tab from the CRM sheet (auto-creates if missing) ──
