@@ -711,7 +711,7 @@ function orderPlace(params) {
       var oHeaders = ordersSheet.getRange(1, 1, 1, ordersSheet.getLastColumn()).getValues()[0].map(function (h) {
         return String(h).trim().toLowerCase().replace(/ /g, '_');
       });
-      var textCells = { delivery_slot: params.deliverySlot, delivery_date: avail.date, tracking_token: token };
+      var textCells = { delivery_slot: slotParam, delivery_date: avail.date, tracking_token: token };
       for (var tcKey in textCells) {
         var tci = oHeaders.indexOf(tcKey);
         if (tci >= 0) {
