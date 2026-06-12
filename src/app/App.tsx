@@ -8,6 +8,7 @@ import { ProductsPage } from './pages/Products';
 import { CateringPage } from './pages/Catering';
 import { ContactPage } from './pages/Contact';
 import { AdminPage } from './pages/admin/AdminPage';
+import { TrackPage } from './pages/Track';
 
 function App() {
   return (
@@ -20,6 +21,7 @@ function App() {
           <Route path="products" element={<ProductsPage />} />
           <Route path="catering" element={<CateringPage />} />
           <Route path="contact" element={<ContactPage />} />
+          <Route path="track" element={<TrackPage />} />
         </Route>
         <Route path="/admin" element={<AdminPage />} />
       </Routes>
