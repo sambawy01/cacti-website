@@ -73,7 +73,10 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
     }));
   };
 
-  const clearCart = () => setItems([]);
+  const clearCart = () => {
+    localStorage.removeItem('bistro_cart');
+    setItems([]);
+  };
 
   const toggleCart = () => setIsCartOpen(prev => !prev);
 

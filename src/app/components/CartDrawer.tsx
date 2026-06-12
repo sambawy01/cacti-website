@@ -26,7 +26,6 @@ function fallbackSlots(): SlotInfo[] {
   return slots;
 }
 
-// I'll implement a custom drawer/sidebar since I haven't installed shadcn sheet fully
 export function CartDrawer() {
   const { items, removeItem, updateQuantity, clearCart, totalPrice, isCartOpen, toggleCart } = useCart();
   const [paymentMethod, setPaymentMethod] = React.useState('Cash on Delivery');
@@ -45,7 +44,8 @@ export function CartDrawer() {
 
   const applyAvailability = React.useCallback((a: Availability | null) => {
     setAvailability(a);
-    if (!a || a.paused) return;
+    if (!a) { setSelectedSlot('asap'); return; }
+    if (a.paused) return;
     setSelectedSlot(prev => {
       if (prev === 'asap') return a.asap ? 'asap' : (a.slots[0]?.time ?? 'asap');
       return a.slots.some(s => s.time === prev) ? prev : (a.asap ?? a.slots[0]?.time ?? 'asap');
@@ -83,6 +83,7 @@ export function CartDrawer() {
       localStorage.setItem('bc_name', customerName.trim());
       localStorage.setItem('bc_phone', customerPhone.trim());
       if (customerEmail.trim()) localStorage.setItem('bc_email', customerEmail.trim());
+      else localStorage.removeItem('bc_email');
 
       const orderSummary = items.map(item =>
         `${item.quantity}x ${item.name} (${item.price * item.quantity} EGP)`
@@ -92,6 +93,7 @@ export function CartDrawer() {
       // Open the WhatsApp tab synchronously (popup blockers require this);
       // we point it at the right URL after the capacity check completes.
       const waWindow = window.open('', '_blank');
+      try { waWindow?.document.write('<p style="font-family: sans-serif; padding: 24px;">Placing your order…</p>'); } catch {}
       const navigateTo = (url: string) => {
         if (waWindow) waWindow.location.href = url;
         else window.location.href = url;
@@ -127,14 +129,16 @@ export function CartDrawer() {
           });
         } catch {
           // Network error mid-submit: fail open to the legacy flow.
-          navigateTo(`https://wa.me/201221288804?text=${encodeURIComponent(
-            `${baseText}\nDelivery Time: ${slotLabel(slotTime)}${contactText}\n\nPlease confirm delivery time.`)}`);
-          submitOrder({
+          const url = `https://wa.me/201221288804?text=${encodeURIComponent(
+            `${baseText}\nDelivery Time: ${slotLabel(slotTime)}${contactText}\n\nPlease confirm delivery time.`)}`;
+          const legacySave = () => submitOrder({
             name: customerName, phone: customerPhone, address: address || orderNotes,
             deliveryArea: 'El Gouna', orderTotal: totalPrice, orderSummary,
           }).catch(err => console.error('CRM save failed:', err));
           clearCart();
           toggleCart();
+          if (waWindow) { navigateTo(url); legacySave(); }
+          else { await legacySave(); navigateTo(url); }
           return;
         }
 
@@ -159,8 +163,11 @@ export function CartDrawer() {
         const timeLine = result.status === 'pending_approval'
           ? `Requested Time: ${label} (busy slot — pending your confirmation)`
           : `Delivery Time: ${label} (confirmed)`;
-        navigateTo(`https://wa.me/201221288804?text=${encodeURIComponent(
-          `${baseText}\n${timeLine}${contactText}`)}`);
+        const url = `https://wa.me/201221288804?text=${encodeURIComponent(
+          `${baseText}\n${timeLine}${contactText}`)}`;
+        clearCart();
+        toggleCart();
+        navigateTo(url);
 
         if (result.status === 'pending_approval') {
           toast.success(`Order received! ${label} is busy — we'll confirm your time shortly.`);
@@ -168,18 +175,21 @@ export function CartDrawer() {
           toast.success(`Order confirmed for ${label}!`);
         }
       } else {
+        // Reached only when availability === null (service unreachable). The paused /
+        // no-slots cases never get here — checkoutBlocked disables checkout entirely.
         // ── Legacy flow (availability service unreachable) ──
         const slotTimeLabel = selectedSlot === 'asap' ? 'As soon as possible' : slotLabel(selectedSlot);
-        navigateTo(`https://wa.me/201221288804?text=${encodeURIComponent(
-          `${baseText}\nDelivery Time: ${slotTimeLabel}${contactText}\n\nPlease confirm delivery time.`)}`);
-        submitOrder({
+        const url = `https://wa.me/201221288804?text=${encodeURIComponent(
+          `${baseText}\nDelivery Time: ${slotTimeLabel}${contactText}\n\nPlease confirm delivery time.`)}`;
+        const legacySave = () => submitOrder({
           name: customerName, phone: customerPhone, address: address || orderNotes,
           deliveryArea: 'El Gouna', orderTotal: totalPrice, orderSummary,
         }).catch(err => console.error('CRM save failed:', err));
+        clearCart();
+        toggleCart();
+        if (waWindow) { navigateTo(url); legacySave(); }
+        else { await legacySave(); navigateTo(url); }
       }
-
-      clearCart();
-      toggleCart();
     } finally {
       setIsSubmitting(false);
     }
