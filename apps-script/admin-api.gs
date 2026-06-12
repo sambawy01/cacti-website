@@ -510,18 +510,29 @@ function setupCRM() {
 
 var BISTRO_TZ = 'Africa/Cairo';
 
+// A Date handed back by getValues() represents the wall-clock in the SHEET's
+// timezone (which may differ from the script's). Format it back in that same
+// timezone to recover the correct value. Cached so we don't re-open per row.
+var _crmTimeZone = null;
+function getCrmTimeZone() {
+  if (!_crmTimeZone) {
+    try { _crmTimeZone = SpreadsheetApp.openById(CRM_SHEET_ID).getSpreadsheetTimeZone(); }
+    catch (e) { _crmTimeZone = BISTRO_TZ; }
+  }
+  return _crmTimeZone;
+}
+
 // Sheets may hand back Date objects for time/date-looking cells beyond the
 // '@'-formatted range. Normalize defensively so capacity math never sees a Date.
 function normalizeSlotString(val) {
   if (val instanceof Date) {
-    return (val.getHours() < 10 ? '0' : '') + val.getHours() + ':' +
-           (val.getMinutes() < 10 ? '0' : '') + val.getMinutes();
+    return Utilities.formatDate(val, getCrmTimeZone(), 'HH:mm');
   }
   return String(val === undefined || val === null ? '' : val);
 }
 
 function normalizeDateString(val) {
-  if (val instanceof Date) return Utilities.formatDate(val, BISTRO_TZ, 'yyyy-MM-dd');
+  if (val instanceof Date) return Utilities.formatDate(val, getCrmTimeZone(), 'yyyy-MM-dd');
   return String(val === undefined || val === null ? '' : val);
 }
 
@@ -548,6 +559,10 @@ function migrateOrdersTab() {
     }
   }
   // Force plain-text format on columns Sheets would otherwise auto-convert.
+  // NOTE: this only covers rows up to getMaxRows() AT MIGRATION TIME; rows
+  // appended beyond that range revert to default format. The per-row text
+  // hardening in orderPlace (setNumberFormat('@') + setValue on the appended
+  // row) is the DURABLE guarantee — this loop just fixes the existing range.
   var textCols = ['delivery_date', 'delivery_slot', 'tracking_token'];
   for (var t = 0; t < textCols.length; t++) {
     var idx = headers.indexOf(textCols[t]);
@@ -686,6 +701,28 @@ function orderPlace(params) {
       status: outcome,
       notes: '',
     });
+
+    // Force the slot/date/token cells of the row we just appended to plain text.
+    // Sheets otherwise coerces '14:00' into a time value (corrupting it across
+    // timezones and breaking capacity bucketing). Text storage is TZ-independent.
+    try {
+      var ordersSheet = crmGetSheet('Orders');
+      var oRow = ordersSheet.getLastRow();
+      var oHeaders = ordersSheet.getRange(1, 1, 1, ordersSheet.getLastColumn()).getValues()[0].map(function (h) {
+        return String(h).trim().toLowerCase().replace(/ /g, '_');
+      });
+      var textCells = { delivery_slot: params.deliverySlot, delivery_date: avail.date, tracking_token: token };
+      for (var tcKey in textCells) {
+        var tci = oHeaders.indexOf(tcKey);
+        if (tci >= 0) {
+          var tcell = ordersSheet.getRange(oRow, tci + 1);
+          tcell.setNumberFormat('@');      // format FIRST, then value, so it stores as text
+          tcell.setValue(textCells[tcKey]);
+        }
+      }
+    } catch (eFmt) {
+      Logger.log('Order text-cell hardening failed (non-fatal): ' + eFmt);
+    }
 
     // Pipeline is CRM bookkeeping — never fail the order on it.
     try {
