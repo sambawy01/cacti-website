@@ -20,6 +20,7 @@ const SETTINGS = {
   openHour: 14,
   closeHour: 20,
   leadTimeMins: 30,
+  maxDailyPlacements: 60,
   blackoutDates: '',
   paused: false,
 };
@@ -50,9 +51,10 @@ describe('parseCapacitySettings', () => {
   });
 
   it('keeps defaults when capacity caps are zero/negative (spreadsheet typo guard)', () => {
-    const s = cap.parseCapacitySettings([['maxOrdersPerHour', '0'], ['maxItemsPerHour', '-2']]);
+    const s = cap.parseCapacitySettings([['maxOrdersPerHour', '0'], ['maxItemsPerHour', '-2'], ['maxDailyPlacements', '0']]);
     expect(s.maxOrdersPerHour).toBe(4);
     expect(s.maxItemsPerHour).toBe(6);
+    expect(s.maxDailyPlacements).toBe(60);
   });
 });
 

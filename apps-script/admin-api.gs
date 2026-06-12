@@ -104,7 +104,8 @@ function doGet(e) {
       if (action === 'placeOrder') return jsonpResponse(callback, orderPlace(params));
       return jsonpResponse(callback, orderGetStatus(params.token));
     } catch (err) {
-      return jsonpResponse(callback, { success: false, error: err.message });
+      Logger.log('Public order action failed (' + action + '): ' + err);
+      return jsonpResponse(callback, { success: false, error: 'Something went wrong. Please try again.' });
     }
   }
 
@@ -509,6 +510,21 @@ function setupCRM() {
 
 var BISTRO_TZ = 'Africa/Cairo';
 
+// Sheets may hand back Date objects for time/date-looking cells beyond the
+// '@'-formatted range. Normalize defensively so capacity math never sees a Date.
+function normalizeSlotString(val) {
+  if (val instanceof Date) {
+    return (val.getHours() < 10 ? '0' : '') + val.getHours() + ':' +
+           (val.getMinutes() < 10 ? '0' : '') + val.getMinutes();
+  }
+  return String(val === undefined || val === null ? '' : val);
+}
+
+function normalizeDateString(val) {
+  if (val instanceof Date) return Utilities.formatDate(val, BISTRO_TZ, 'yyyy-MM-dd');
+  return String(val === undefined || val === null ? '' : val);
+}
+
 /**
  * Run ONCE from the Apps Script editor after deploying this version.
  * Appends the new capacity columns to the existing Orders tab (header-based
@@ -559,6 +575,7 @@ function setupCapacitySettings() {
     ['openHour', 14],
     ['closeHour', 20],
     ['leadTimeMins', 30],
+    ['maxDailyPlacements', 60],
     ['blackoutDates', ''],
     ['paused', 'FALSE'],
   ];
@@ -583,11 +600,24 @@ function cairoNowMinutes() {
 
 // ============ CAPACITY: ORDER ENGINE ============
 
+var AVAILABILITY_CACHE_KEY = 'bc_avail_v1';
+
 function orderGetAvailability() {
+  var cache = CacheService.getScriptCache();
+  try {
+    var cached = cache.get(AVAILABILITY_CACHE_KEY);
+    if (cached) return JSON.parse(cached);
+  } catch (e) { /* cache failures must never break availability */ }
   var settings = getCapacitySettings();
   var orders = crmReadRows('Orders');
   var avail = computeAvailability(orders, settings, cairoToday(), cairoNowMinutes());
-  return { success: true, availability: avail };
+  var result = { success: true, availability: avail };
+  try { cache.put(AVAILABILITY_CACHE_KEY, JSON.stringify(result), 30); } catch (e) {}
+  return result;
+}
+
+function invalidateAvailabilityCache() {
+  try { CacheService.getScriptCache().remove(AVAILABILITY_CACHE_KEY); } catch (e) {}
 }
 
 /**
@@ -600,94 +630,126 @@ function orderGetAvailability() {
  *   itemCount, deliverySlot ('HH:mm'), expectedStatus ('open'|'busy')
  */
 function orderPlace(params) {
+  // Input validation — before any locking or sheet I/O.
+  var slotParam = String(params.deliverySlot || '');
+  if (!/^\d{1,2}:\d{2}$/.test(slotParam)) {
+    return { success: false, code: 'slot_unavailable' };
+  }
+  // Single valid recipient only — MailApp accepts comma lists, so reject anything non-simple.
+  var email = String(params.email || '').trim();
+  if (email && !/^[^\s@,;]+@[^\s@,;]+\.[^\s@,;]+$/.test(email)) email = '';
+  var itemCount = Math.min(60, Math.max(1, Math.floor(Number(params.itemCount)) || 1));
+
   var lock = LockService.getScriptLock();
-  lock.waitLock(15000);
+  if (!lock.tryLock(15000)) {
+    return { success: false, code: 'busy_retry' };
+  }
+  var outcome, avail, id, token, ts;
   try {
     var settings = getCapacitySettings();
     var orders = crmReadRows('Orders');
-    var avail = computeAvailability(orders, settings, cairoToday(), cairoNowMinutes());
-    var outcome = decideOrderOutcome(avail, params.deliverySlot, params.expectedStatus || 'open');
+    var today = cairoToday();
 
+    // Daily placement cap across all statuses — abuse backstop for the public endpoint.
+    var placedToday = 0;
+    for (var i = 0; i < orders.length; i++) {
+      if (String(orders[i].delivery_date) === today) placedToday++;
+    }
+    if (placedToday >= settings.maxDailyPlacements) {
+      return { success: false, code: 'daily_limit' };
+    }
+
+    avail = computeAvailability(orders, settings, today, cairoNowMinutes());
+    outcome = decideOrderOutcome(avail, slotParam, params.expectedStatus || 'open');
     if (outcome === 'slot_full' || outcome === 'slot_unavailable') {
       return { success: false, code: outcome, availability: avail };
     }
 
-    var id = Date.now();
-    var token = Utilities.getUuid();
-    var ts = new Date().toISOString();
-    var itemCount = Number(params.itemCount) > 0 ? Number(params.itemCount) : 1;
+    id = Date.now();
+    token = Utilities.getUuid();
+    ts = new Date().toISOString();
 
     crmAppendRow('Orders', {
       id: id,
       timestamp: ts,
       name: params.name || '',
       phone: params.phone || '',
-      email: params.email || '',
+      email: email,
       delivery_area: params.deliveryArea || '',
       address: params.address || '',
       order_total: params.orderTotal || '',
       order_summary: params.orderSummary || '',
       item_count: itemCount,
       delivery_date: avail.date,
-      delivery_slot: params.deliverySlot,
+      delivery_slot: slotParam,
       tracking_token: token,
       status: outcome,
       notes: '',
     });
 
-    crmAppendRow('Pipeline', {
-      id: id,
-      timestamp: ts,
-      type: 'order',
-      deal_name: 'Order — ' + (params.name || 'Unknown'),
-      contact_name: params.name || '',
-      company: '',
-      email: params.email || '',
-      stage: outcome === 'confirmed' ? 'Won' : 'Inquiry',
-      value: params.orderTotal || '',
-      event_date: avail.date,
-      guest_count: '1',
-      location: params.deliveryArea || params.address || '',
-      status: outcome === 'confirmed' ? 'Completed' : 'Open',
-      notes: params.orderSummary || '',
-    });
-
-    var orderInfo = {
-      name: params.name || '',
-      phone: params.phone || '',
-      email: params.email || '',
-      address: params.address || '',
-      orderTotal: params.orderTotal || '',
-      orderSummary: params.orderSummary || '',
-      itemCount: itemCount,
-      deliveryDate: avail.date,
-      deliverySlot: params.deliverySlot,
-      trackingToken: token,
-    };
-
-    if (outcome === 'confirmed') {
-      createKitchenEvent(orderInfo);
-      sendOrderConfirmationEmail(orderInfo);
+    // Pipeline is CRM bookkeeping — never fail the order on it.
+    try {
+      crmAppendRow('Pipeline', {
+        id: id,
+        timestamp: ts,
+        type: 'order',
+        deal_name: 'Order — ' + (params.name || 'Unknown'),
+        contact_name: params.name || '',
+        company: '',
+        email: email,
+        stage: outcome === 'confirmed' ? 'Won' : 'Inquiry',
+        value: params.orderTotal || '',
+        event_date: avail.date,
+        guest_count: '1',
+        location: params.deliveryArea || params.address || '',
+        status: outcome === 'confirmed' ? 'Completed' : 'Open',
+        notes: params.orderSummary || '',
+      });
+    } catch (e) {
+      Logger.log('Pipeline append failed: ' + e);
     }
-    sendInternalNotification({
-      name: params.name,
-      phone: params.phone,
-      deliverySlot: slotLabel12h(params.deliverySlot),
-      status: outcome,
-      orderTotal: params.orderTotal,
-      orderSummary: params.orderSummary,
-    }, 'order');
 
-    return {
-      success: true,
-      status: outcome,
-      trackingToken: token,
-      deliverySlot: params.deliverySlot,
-      deliveryDate: avail.date,
-    };
+    // Commit buffered writes BEFORE releasing the lock, or the next
+    // locked reader can still see pre-append data (double booking).
+    SpreadsheetApp.flush();
   } finally {
     lock.releaseLock();
   }
+
+  // Slow side effects (calendar, email) run OUTSIDE the lock.
+  invalidateAvailabilityCache();
+  var orderInfo = {
+    name: params.name || '',
+    phone: params.phone || '',
+    email: email,
+    address: params.address || '',
+    orderTotal: params.orderTotal || '',
+    orderSummary: params.orderSummary || '',
+    itemCount: itemCount,
+    deliveryDate: avail.date,
+    deliverySlot: slotParam,
+    trackingToken: token,
+  };
+  if (outcome === 'confirmed') {
+    createKitchenEvent(orderInfo);
+    sendOrderConfirmationEmail(orderInfo);
+  }
+  sendInternalNotification({
+    name: params.name,
+    phone: params.phone,
+    deliverySlot: slotLabel12h(slotParam),
+    status: outcome,
+    orderTotal: params.orderTotal,
+    orderSummary: params.orderSummary,
+  }, 'order');
+
+  return {
+    success: true,
+    status: outcome,
+    trackingToken: token,
+    deliverySlot: slotParam,
+    deliveryDate: avail.date,
+  };
 }
 
 function orderGetStatus(token) {
@@ -741,6 +803,12 @@ function createKitchenEvent(orderInfo) {
 
 // ============ CAPACITY: CUSTOMER EMAILS ============
 
+function escapeHtml(s) {
+  return String(s === undefined || s === null ? '' : s)
+    .replace(/&/g, '&amp;').replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+}
+
 function bistroEmailWrap(innerHtml) {
   return '<div style="font-family: Helvetica Neue, Arial, sans-serif; max-width: 600px; margin: 0 auto; background: #F9F5F0;">' +
     '<div style="background: #2C3E50; padding: 30px; text-align: center;">' +
@@ -760,11 +828,11 @@ function sendOrderConfirmationEmail(orderInfo) {
   try {
     if (!orderInfo.email) return;
     var slotLabel = slotLabel12h(orderInfo.deliverySlot);
-    var inner = '<h2 style="color: #2C3E50; margin-top: 0;">Order confirmed, ' + orderInfo.name + '!</h2>' +
+    var inner = '<h2 style="color: #2C3E50; margin-top: 0;">Order confirmed, ' + escapeHtml(orderInfo.name) + '!</h2>' +
       '<p style="color: #555; line-height: 1.6;">Your delivery is scheduled for <strong>today at ' + slotLabel + '</strong>.</p>' +
       '<div style="background: #F9F5F0; border-radius: 12px; padding: 20px; margin: 20px 0;">' +
-        '<p style="color: #333; margin: 0; white-space: pre-line;">' + orderInfo.orderSummary + '</p>' +
-        '<p style="color: #2C3E50; font-weight: bold; margin: 10px 0 0;">Total: ' + orderInfo.orderTotal + ' EGP</p>' +
+        '<p style="color: #333; margin: 0; white-space: pre-line;">' + escapeHtml(orderInfo.orderSummary) + '</p>' +
+        '<p style="color: #2C3E50; font-weight: bold; margin: 10px 0 0;">Total: ' + escapeHtml(orderInfo.orderTotal) + ' EGP</p>' +
       '</div>';
     MailApp.sendEmail({
       to: orderInfo.email,
@@ -785,8 +853,11 @@ function sendOrderDeclineEmail(orderInfo, openSlotLabels) {
     var alternatives = (openSlotLabels && openSlotLabels.length)
       ? '<p style="color: #555; line-height: 1.6;">These times are still available today: <strong>' + openSlotLabels.join(', ') + '</strong>. Place a new order on <a href="https://bistro-cloud.com/menu" style="color: #D94E28;">bistro-cloud.com</a> or WhatsApp us.</p>'
       : '<p style="color: #555; line-height: 1.6;">Unfortunately no more delivery times are available today. We would love to serve you tomorrow!</p>';
-    var inner = '<h2 style="color: #2C3E50; margin-top: 0;">About your order, ' + orderInfo.name + '</h2>' +
-      '<p style="color: #555; line-height: 1.6;">We\'re sorry — the kitchen is fully booked at <strong>' + slotLabel12h(orderInfo.deliverySlot) + '</strong> and we couldn\'t fit your order in.</p>' +
+    var slotPhrase = /^\d{1,2}:\d{2}$/.test(String(orderInfo.deliverySlot))
+      ? ' at <strong>' + slotLabel12h(orderInfo.deliverySlot) + '</strong>'
+      : '';
+    var inner = '<h2 style="color: #2C3E50; margin-top: 0;">About your order, ' + escapeHtml(orderInfo.name) + '</h2>' +
+      '<p style="color: #555; line-height: 1.6;">We\'re sorry — the kitchen is fully booked' + slotPhrase + ' and we couldn\'t fit your order in.</p>' +
       alternatives +
       '<div style="text-align: center; margin: 25px 0;">' +
         '<a href="https://wa.me/201221288804" style="display: inline-block; background: #D94E28; color: white; padding: 12px 30px; border-radius: 8px; text-decoration: none; font-weight: bold;">Chat on WhatsApp</a>' +
@@ -837,25 +908,59 @@ function orderSetStatus(rowIndex, newStatus) {
     orderTotal: row.order_total || '',
     orderSummary: String(row.order_summary || ''),
     itemCount: Number(row.item_count) > 0 ? Number(row.item_count) : 1,
-    deliveryDate: String(row.delivery_date || ''),
-    deliverySlot: String(row.delivery_slot || ''),
+    deliveryDate: normalizeDateString(row.delivery_date),
+    deliverySlot: normalizeSlotString(row.delivery_slot),
     trackingToken: String(row.tracking_token || ''),
   };
 
   if (newStatus === 'confirmed' && prevStatus === 'pending_approval') {
     createKitchenEvent(orderInfo);
     sendOrderConfirmationEmail(orderInfo);
+    updatePipelineForOrder(row.id, 'Won', 'Completed');
   } else if (newStatus === 'declined') {
-    var avail = orderGetAvailability().availability;
-    var openLabels = [];
-    for (var s = 0; s < avail.slots.length; s++) {
-      if (avail.slots[s].status === 'open') openLabels.push(slotLabel12h(avail.slots[s].time));
+    if (prevStatus !== 'declined') {
+      var avail = orderGetAvailability().availability;
+      var openLabels = [];
+      for (var s = 0; s < avail.slots.length; s++) {
+        if (avail.slots[s].status === 'open') openLabels.push(slotLabel12h(avail.slots[s].time));
+      }
+      sendOrderDeclineEmail(orderInfo, openLabels);
     }
-    sendOrderDeclineEmail(orderInfo, openLabels);
+    updatePipelineForOrder(row.id, 'Lost', 'Closed');
+  } else if (newStatus === 'cancelled') {
+    updatePipelineForOrder(row.id, 'Lost', 'Closed');
   }
   // Phase 2 hook: status-update emails for preparing/out_for_delivery/delivered.
 
+  invalidateAvailabilityCache();
   return { success: true, status: newStatus };
+}
+
+// Keep the Pipeline tab roughly in sync with order status changes.
+function updatePipelineForOrder(orderId, stage, status) {
+  try {
+    var sheet = crmGetSheet('Pipeline');
+    var lastRow = sheet.getLastRow();
+    var lastCol = sheet.getLastColumn();
+    if (lastRow < 2 || lastCol === 0) return;
+    var headers = sheet.getRange(1, 1, 1, lastCol).getValues()[0].map(function (h) {
+      return String(h).trim().toLowerCase().replace(/ /g, '_');
+    });
+    var idCol = headers.indexOf('id');
+    var stageCol = headers.indexOf('stage');
+    var statusCol = headers.indexOf('status');
+    if (idCol < 0) return;
+    var ids = sheet.getRange(2, idCol + 1, lastRow - 1, 1).getValues();
+    for (var i = 0; i < ids.length; i++) {
+      if (String(ids[i][0]) === String(orderId)) {
+        if (stageCol >= 0) sheet.getRange(i + 2, stageCol + 1).setValue(stage);
+        if (statusCol >= 0) sheet.getRange(i + 2, statusCol + 1).setValue(status);
+        return;
+      }
+    }
+  } catch (e) {
+    Logger.log('Pipeline sync failed: ' + e);
+  }
 }
 
 // ── CRM helper: get a tab from the CRM sheet (auto-creates if missing) ──
@@ -918,6 +1023,10 @@ function crmReadRows(tabName) {
       var h = headers[j];
       if (h === 'id' || h === 'order_total' || h === 'guest_count' || h === 'value') {
         item[h] = val === '' ? '' : (isNaN(Number(val)) ? String(val) : Number(val));
+      } else if (h === 'delivery_slot') {
+        item[h] = normalizeSlotString(val);
+      } else if (h === 'delivery_date') {
+        item[h] = normalizeDateString(val);
       } else {
         item[h] = val !== undefined ? String(val) : '';
       }
@@ -1115,7 +1224,7 @@ function sendInternalNotification(data, formType) {
     var details = '';
     for (var key in data) {
       if (data[key]) {
-        details += '<tr><td style="padding: 5px 10px; color: #888; font-size: 13px;">' + key + '</td><td style="padding: 5px 10px; color: #333; font-size: 13px;">' + data[key] + '</td></tr>';
+        details += '<tr><td style="padding: 5px 10px; color: #888; font-size: 13px;">' + escapeHtml(key) + '</td><td style="padding: 5px 10px; color: #333; font-size: 13px;">' + escapeHtml(data[key]) + '</td></tr>';
       }
     }
 

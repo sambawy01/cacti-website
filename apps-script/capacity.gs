@@ -17,6 +17,7 @@ var CAPACITY_DEFAULTS = {
   openHour: 14,
   closeHour: 20,
   leadTimeMins: 30,
+  maxDailyPlacements: 60,
   blackoutDates: '',
   paused: false,
 };
@@ -43,7 +44,7 @@ function parseCapacitySettings(rows) {
     } else {
       var n = Number(val);
       if (!isNaN(n)) {
-        if ((key === 'maxOrdersPerHour' || key === 'maxItemsPerHour') && n < 1) continue;
+        if ((key === 'maxOrdersPerHour' || key === 'maxItemsPerHour' || key === 'maxDailyPlacements') && n < 1) continue;
         s[key] = n;
       }
     }
