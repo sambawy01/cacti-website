@@ -48,6 +48,12 @@ describe('parseCapacitySettings', () => {
     expect(s.maxItemsPerHour).toBe(6); // untouched default
     expect('unknownKey' in s).toBe(false);
   });
+
+  it('keeps defaults when capacity caps are zero/negative (spreadsheet typo guard)', () => {
+    const s = cap.parseCapacitySettings([['maxOrdersPerHour', '0'], ['maxItemsPerHour', '-2']]);
+    expect(s.maxOrdersPerHour).toBe(4);
+    expect(s.maxItemsPerHour).toBe(6);
+  });
 });
 
 describe('slot helpers', () => {
@@ -61,6 +67,7 @@ describe('slot helpers', () => {
     expect(cap.slotLabel12h('14:30')).toBe('2:30 PM');
     expect(cap.slotLabel12h('12:00')).toBe('12:00 PM');
     expect(cap.slotLabel12h('20:00')).toBe('8:00 PM');
+    expect(cap.slotLabel12h('09:30')).toBe('9:30 AM');
   });
 });
 

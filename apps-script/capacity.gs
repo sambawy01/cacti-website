@@ -25,6 +25,7 @@ var CAPACITY_DEFAULTS = {
 // legacy 'New' rows (which have no delivery_slot) do not consume capacity.
 var CAPACITY_STATUSES = ['confirmed', 'preparing', 'out_for_delivery', 'delivered'];
 
+// Full status lifecycle — declared here so admin-api.gs can reference it in shared scope.
 var ORDER_STATUSES = ['pending_approval', 'confirmed', 'preparing', 'out_for_delivery', 'delivered', 'declined', 'cancelled'];
 
 /** rows: [[key, value], ...] from the Settings tab → settings object with defaults. */
@@ -41,7 +42,10 @@ function parseCapacitySettings(rows) {
       s[key] = val === true || String(val).toLowerCase() === 'true';
     } else {
       var n = Number(val);
-      if (!isNaN(n)) s[key] = n;
+      if (!isNaN(n)) {
+        if ((key === 'maxOrdersPerHour' || key === 'maxItemsPerHour') && n < 1) continue;
+        s[key] = n;
+      }
     }
   }
   return s;
@@ -73,6 +77,7 @@ function slotLabel12h(slot) {
  * Count capacity-consuming orders/items per hour for a given date.
  * orders: row objects from the Orders tab (delivery_date, delivery_slot,
  * item_count, status). Returns { [hour]: { orders, items } }.
+ * delivery_date must already be a formatted 'yyyy-MM-dd' string (not a Date object).
  */
 function countCapacityByHour(orders, dateStr) {
   var byHour = {};
