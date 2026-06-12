@@ -97,6 +97,17 @@ function doGet(e) {
     })).setMimeType(ContentService.MimeType.JSON);
   }
 
+  // ── Public order actions (no password — customer-facing) ──
+  if (action === 'getAvailability' || action === 'placeOrder' || action === 'getOrderStatus') {
+    try {
+      if (action === 'getAvailability') return jsonpResponse(callback, orderGetAvailability());
+      if (action === 'placeOrder') return jsonpResponse(callback, orderPlace(params));
+      return jsonpResponse(callback, orderGetStatus(params.token));
+    } catch (err) {
+      return jsonpResponse(callback, { success: false, error: err.message });
+    }
+  }
+
   // ── Admin actions: all require valid role password ──
   var role = getRole(password);
   if (!role) {
@@ -566,6 +577,228 @@ function cairoToday() {
 
 function cairoNowMinutes() {
   return slotToMinutes(Utilities.formatDate(new Date(), BISTRO_TZ, 'HH:mm'));
+}
+
+// ============ CAPACITY: ORDER ENGINE ============
+
+function orderGetAvailability() {
+  var settings = getCapacitySettings();
+  var orders = crmReadRows('Orders');
+  var avail = computeAvailability(orders, settings, cairoToday(), cairoNowMinutes());
+  return { success: true, availability: avail };
+}
+
+/**
+ * Capacity-checked order placement. The lock serializes the
+ * re-check + write so two simultaneous customers can't both take the
+ * last slot in an hour.
+ *
+ * params (all strings from the GET query):
+ *   name, phone, email, address, deliveryArea, orderTotal, orderSummary,
+ *   itemCount, deliverySlot ('HH:mm'), expectedStatus ('open'|'busy')
+ */
+function orderPlace(params) {
+  var lock = LockService.getScriptLock();
+  lock.waitLock(15000);
+  try {
+    var settings = getCapacitySettings();
+    var orders = crmReadRows('Orders');
+    var avail = computeAvailability(orders, settings, cairoToday(), cairoNowMinutes());
+    var outcome = decideOrderOutcome(avail, params.deliverySlot, params.expectedStatus || 'open');
+
+    if (outcome === 'slot_full' || outcome === 'slot_unavailable') {
+      return { success: false, code: outcome, availability: avail };
+    }
+
+    var id = Date.now();
+    var token = Utilities.getUuid();
+    var ts = new Date().toISOString();
+    var itemCount = Number(params.itemCount) > 0 ? Number(params.itemCount) : 1;
+
+    crmAppendRow('Orders', {
+      id: id,
+      timestamp: ts,
+      name: params.name || '',
+      phone: params.phone || '',
+      email: params.email || '',
+      delivery_area: params.deliveryArea || '',
+      address: params.address || '',
+      order_total: params.orderTotal || '',
+      order_summary: params.orderSummary || '',
+      item_count: itemCount,
+      delivery_date: avail.date,
+      delivery_slot: params.deliverySlot,
+      tracking_token: token,
+      status: outcome,
+      notes: '',
+    });
+
+    crmAppendRow('Pipeline', {
+      id: id,
+      timestamp: ts,
+      type: 'order',
+      deal_name: 'Order — ' + (params.name || 'Unknown'),
+      contact_name: params.name || '',
+      company: '',
+      email: params.email || '',
+      stage: outcome === 'confirmed' ? 'Won' : 'Inquiry',
+      value: params.orderTotal || '',
+      event_date: avail.date,
+      guest_count: '1',
+      location: params.deliveryArea || params.address || '',
+      status: outcome === 'confirmed' ? 'Completed' : 'Open',
+      notes: params.orderSummary || '',
+    });
+
+    var orderInfo = {
+      name: params.name || '',
+      phone: params.phone || '',
+      email: params.email || '',
+      address: params.address || '',
+      orderTotal: params.orderTotal || '',
+      orderSummary: params.orderSummary || '',
+      itemCount: itemCount,
+      deliveryDate: avail.date,
+      deliverySlot: params.deliverySlot,
+      trackingToken: token,
+    };
+
+    if (outcome === 'confirmed') {
+      createKitchenEvent(orderInfo);
+      sendOrderConfirmationEmail(orderInfo);
+    }
+    sendInternalNotification({
+      name: params.name,
+      phone: params.phone,
+      deliverySlot: slotLabel12h(params.deliverySlot),
+      status: outcome,
+      orderTotal: params.orderTotal,
+      orderSummary: params.orderSummary,
+    }, 'order');
+
+    return {
+      success: true,
+      status: outcome,
+      trackingToken: token,
+      deliverySlot: params.deliverySlot,
+      deliveryDate: avail.date,
+    };
+  } finally {
+    lock.releaseLock();
+  }
+}
+
+function orderGetStatus(token) {
+  if (!token) return { success: false, error: 'Missing token' };
+  var orders = crmReadRows('Orders');
+  for (var i = orders.length - 1; i >= 0; i--) {
+    if (String(orders[i].tracking_token) === String(token)) {
+      var o = orders[i];
+      return {
+        success: true,
+        order: {
+          name: String(o.name || ''),
+          status: String(o.status || ''),
+          deliveryDate: String(o.delivery_date || ''),
+          deliverySlot: String(o.delivery_slot || ''),
+          orderSummary: String(o.order_summary || ''),
+          orderTotal: o.order_total || '',
+        },
+      };
+    }
+  }
+  return { success: false, error: 'Order not found' };
+}
+
+// ============ CAPACITY: KITCHEN CALENDAR ============
+
+var KITCHEN_CALENDAR_NAME = 'Bistro Kitchen';
+
+function getKitchenCalendar() {
+  var cals = CalendarApp.getCalendarsByName(KITCHEN_CALENDAR_NAME);
+  if (cals.length > 0) return cals[0];
+  return CalendarApp.createCalendar(KITCHEN_CALENDAR_NAME);
+}
+
+/** orderInfo: { name, phone, address, orderTotal, orderSummary, itemCount, deliveryDate, deliverySlot } */
+function createKitchenEvent(orderInfo) {
+  try {
+    var start = Utilities.parseDate(
+      orderInfo.deliveryDate + ' ' + orderInfo.deliverySlot, BISTRO_TZ, 'yyyy-MM-dd HH:mm');
+    var end = new Date(start.getTime() + 30 * 60000);
+    var title = orderInfo.name + ' — ' + orderInfo.itemCount + ' item(s) — ' + orderInfo.orderTotal + ' EGP';
+    var desc = 'Phone: ' + orderInfo.phone +
+      '\nAddress: ' + orderInfo.address +
+      '\n\n' + orderInfo.orderSummary;
+    getKitchenCalendar().createEvent(title, start, end, { description: desc });
+  } catch (error) {
+    // Never block an order on a calendar failure.
+    Logger.log('Kitchen calendar event failed: ' + error.toString());
+  }
+}
+
+// ============ CAPACITY: CUSTOMER EMAILS ============
+
+function bistroEmailWrap(innerHtml) {
+  return '<div style="font-family: Helvetica Neue, Arial, sans-serif; max-width: 600px; margin: 0 auto; background: #F9F5F0;">' +
+    '<div style="background: #2C3E50; padding: 30px; text-align: center;">' +
+      '<h1 style="color: white; margin: 0; font-size: 24px;">Bistro Cloud</h1>' +
+      '<p style="color: #bdc3c7; margin: 5px 0 0; font-size: 14px;">Fresh. Natural. Delivered Daily.</p>' +
+    '</div>' +
+    '<div style="padding: 30px; background: white;">' + innerHtml + '</div>' +
+    '<div style="padding: 20px 30px; text-align: center; border-top: 1px solid #eee;">' +
+      '<p style="color: #999; font-size: 12px; margin: 0;">Bistro Cloud El Gouna - 100% Natural Ingredients - Free Delivery<br>' +
+        '<a href="https://bistro-cloud.com" style="color: #D94E28; text-decoration: none;">bistro-cloud.com</a></p>' +
+    '</div>' +
+  '</div>';
+}
+
+/** orderInfo: { name, email, orderSummary, orderTotal, deliverySlot, trackingToken } */
+function sendOrderConfirmationEmail(orderInfo) {
+  try {
+    if (!orderInfo.email) return;
+    var slotLabel = slotLabel12h(orderInfo.deliverySlot);
+    var inner = '<h2 style="color: #2C3E50; margin-top: 0;">Order confirmed, ' + orderInfo.name + '!</h2>' +
+      '<p style="color: #555; line-height: 1.6;">Your delivery is scheduled for <strong>today at ' + slotLabel + '</strong>.</p>' +
+      '<div style="background: #F9F5F0; border-radius: 12px; padding: 20px; margin: 20px 0;">' +
+        '<p style="color: #333; margin: 0; white-space: pre-line;">' + orderInfo.orderSummary + '</p>' +
+        '<p style="color: #2C3E50; font-weight: bold; margin: 10px 0 0;">Total: ' + orderInfo.orderTotal + ' EGP</p>' +
+      '</div>';
+    MailApp.sendEmail({
+      to: orderInfo.email,
+      subject: 'Bistro Cloud — order confirmed for ' + slotLabel,
+      htmlBody: bistroEmailWrap(inner),
+      name: 'Bistro Cloud El Gouna',
+      replyTo: NOTIFICATION_EMAIL,
+    });
+  } catch (error) {
+    Logger.log('Confirmation email failed: ' + error.toString());
+  }
+}
+
+/** orderInfo: { name, email, deliverySlot }, openSlotLabels: array of 'h:mm AM/PM' */
+function sendOrderDeclineEmail(orderInfo, openSlotLabels) {
+  try {
+    if (!orderInfo.email) return;
+    var alternatives = (openSlotLabels && openSlotLabels.length)
+      ? '<p style="color: #555; line-height: 1.6;">These times are still available today: <strong>' + openSlotLabels.join(', ') + '</strong>. Place a new order on <a href="https://bistro-cloud.com/menu" style="color: #D94E28;">bistro-cloud.com</a> or WhatsApp us.</p>'
+      : '<p style="color: #555; line-height: 1.6;">Unfortunately no more delivery times are available today. We would love to serve you tomorrow!</p>';
+    var inner = '<h2 style="color: #2C3E50; margin-top: 0;">About your order, ' + orderInfo.name + '</h2>' +
+      '<p style="color: #555; line-height: 1.6;">We\'re sorry — the kitchen is fully booked at <strong>' + slotLabel12h(orderInfo.deliverySlot) + '</strong> and we couldn\'t fit your order in.</p>' +
+      alternatives +
+      '<div style="text-align: center; margin: 25px 0;">' +
+        '<a href="https://wa.me/201221288804" style="display: inline-block; background: #D94E28; color: white; padding: 12px 30px; border-radius: 8px; text-decoration: none; font-weight: bold;">Chat on WhatsApp</a>' +
+      '</div>';
+    MailApp.sendEmail({
+      to: orderInfo.email,
+      subject: 'Bistro Cloud — we couldn\'t fit your order in today',
+      htmlBody: bistroEmailWrap(inner),
+      name: 'Bistro Cloud El Gouna',
+      replyTo: NOTIFICATION_EMAIL,
+    });
+  } catch (error) {
+    Logger.log('Decline email failed: ' + error.toString());
+  }
 }
 
 // ── CRM helper: get a tab from the CRM sheet (auto-creates if missing) ──
