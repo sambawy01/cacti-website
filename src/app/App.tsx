@@ -7,6 +7,7 @@ import { MenuPage } from './pages/Menu';
 import { ProductsPage } from './pages/Products';
 import { CateringPage } from './pages/Catering';
 import { ContactPage } from './pages/Contact';
+import { PlanBuilderPage } from './pages/PlanBuilder';
 import { AdminPage } from './pages/admin/AdminPage';
 import { TrackPage } from './pages/Track';
 
@@ -21,6 +22,7 @@ function App() {
           <Route path="products" element={<ProductsPage />} />
           <Route path="catering" element={<CateringPage />} />
           <Route path="contact" element={<ContactPage />} />
+          <Route path="plan-builder" element={<PlanBuilderPage />} />
           <Route path="track" element={<TrackPage />} />
         </Route>
         <Route path="/admin" element={<AdminPage />} />

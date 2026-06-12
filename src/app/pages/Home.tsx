@@ -62,7 +62,7 @@ export function HomePage() {
               See Today's Menu
             </Button>
           </Link>
-          <Link to="/catering">
+          <Link to="/plan-builder">
             <Button size="lg" variant="outline" className="text-sm sm:text-lg h-11 sm:h-16 px-5 sm:px-10 rounded-full border-2 border-white text-white hover:bg-white hover:text-[#2C3E50] bg-transparent transition-all">
               Catering Quote
             </Button>
@@ -460,6 +460,79 @@ export function HomePage() {
               See All Reviews on Google
               <ArrowRight className="w-4 h-4" />
             </a>
+          </div>
+        </div>
+      </section>
+
+      {/* AI Features Section */}
+      <section className="py-24 bg-gradient-to-b from-[#2C3E50] to-[#1a252f] text-white relative overflow-hidden">
+        <div className="absolute inset-0 opacity-5">
+          <div className="absolute top-10 left-10 w-72 h-72 bg-[#D94E28] rounded-full blur-[120px]" />
+          <div className="absolute bottom-10 right-10 w-96 h-96 bg-[#D94E28] rounded-full blur-[150px]" />
+        </div>
+        <div className="container mx-auto px-4 relative z-10">
+          <div className="text-center mb-16">
+            <span className="text-[#D94E28] font-bold tracking-[4px] uppercase mb-4 block text-sm">Powered by AI</span>
+            <h2 className="font-montserrat font-bold text-3xl md:text-5xl mb-4">Smart Tools for Your Convenience</h2>
+            <p className="text-gray-400 max-w-2xl mx-auto">
+              The first cloud kitchen in El Gouna with AI-powered ordering and planning tools.
+            </p>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-8 max-w-5xl mx-auto">
+            {/* AI Chat */}
+            <motion.div
+              initial={{ opacity: 0, y: 20 }}
+              whileInView={{ opacity: 1, y: 0 }}
+              viewport={{ once: true }}
+              className="bg-white/5 backdrop-blur-sm border border-white/10 rounded-3xl p-8 md:p-10 hover:bg-white/10 transition-all group"
+            >
+              <div className="w-16 h-16 bg-[#D94E28]/20 rounded-2xl flex items-center justify-center mb-6">
+                <MessageCircle className="w-8 h-8 text-[#D94E28]" />
+              </div>
+              <h3 className="font-montserrat font-bold text-xl md:text-2xl mb-3">AI Chat Assistant</h3>
+              <p className="text-gray-400 leading-relaxed mb-6">
+                Ask anything about our menu, prices, delivery, or dietary options. Get instant answers 24/7 — no waiting for a reply.
+              </p>
+              <div className="flex flex-wrap gap-2 mb-6">
+                {['Menu & Prices', 'Dietary Info', 'Delivery Areas', 'Allergens'].map((tag) => (
+                  <span key={tag} className="px-3 py-1 rounded-full bg-white/10 text-xs font-medium text-gray-300">{tag}</span>
+                ))}
+              </div>
+              <p className="text-[#D94E28] font-semibold text-sm flex items-center gap-2">
+                Click the chat bubble in the bottom right corner
+                <span className="inline-block w-3 h-3 bg-[#D94E28] rounded-full animate-pulse" />
+              </p>
+            </motion.div>
+
+            {/* AI Plan Builder */}
+            <motion.div
+              initial={{ opacity: 0, y: 20 }}
+              whileInView={{ opacity: 1, y: 0 }}
+              viewport={{ once: true }}
+              transition={{ delay: 0.1 }}
+            >
+              <Link
+                to="/plan-builder"
+                className="block bg-gradient-to-br from-[#D94E28] to-[#a83520] rounded-3xl p-8 md:p-10 h-full hover:shadow-2xl hover:shadow-[#D94E28]/20 transition-all group hover:-translate-y-1"
+              >
+                <div className="w-16 h-16 bg-white/20 rounded-2xl flex items-center justify-center mb-6">
+                  <Users className="w-8 h-8 text-white" />
+                </div>
+                <h3 className="font-montserrat font-bold text-xl md:text-2xl mb-3">Corporate Plan Builder</h3>
+                <p className="text-white/80 leading-relaxed mb-6">
+                  Building a catering plan for your team? Our AI designs a custom proposal with menu rotation and pricing in just 2 minutes.
+                </p>
+                <div className="flex flex-wrap gap-2 mb-6">
+                  {['Custom Menus', 'Instant Pricing', 'Event Planning', 'Yacht Catering'].map((tag) => (
+                    <span key={tag} className="px-3 py-1 rounded-full bg-white/20 text-xs font-medium text-white/90">{tag}</span>
+                  ))}
+                </div>
+                <span className="inline-flex items-center gap-2 text-white font-semibold text-sm group-hover:gap-3 transition-all">
+                  Build Your Plan Now <ArrowRight className="w-4 h-4" />
+                </span>
+              </Link>
+            </motion.div>
           </div>
         </div>
       </section>

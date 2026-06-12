@@ -43,6 +43,10 @@ cp dist/index.html index.html
 echo "    index.html updated."
 echo ""
 
+echo "==> Step 4: Creating 404.html for SPA routing..."
+cp dist/index.html 404.html
+echo "    404.html created (GitHub Pages SPA fallback)."
+
 echo "==> Deploy prep complete!"
 echo ""
 echo "    Next steps:"
