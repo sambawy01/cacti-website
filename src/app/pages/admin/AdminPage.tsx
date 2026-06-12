@@ -9,7 +9,8 @@ import { PantryTab } from './PantryTab';
 import { RamadanTab } from './RamadanTab';
 import { InventoryTab } from './InventoryTab';
 import { RequisitionsTab } from './RequisitionsTab';
-import { LogOut, Loader2, Globe, Warehouse, Languages, UtensilsCrossed, Package, Moon, ClipboardList, BoxesIcon } from 'lucide-react';
+import { LogOut, Loader2, Globe, Warehouse, Languages, UtensilsCrossed, Package, Moon, ClipboardList, BoxesIcon, ShoppingBag } from 'lucide-react';
+import { OrdersTab } from './OrdersTab';
 
 const ROLE_LABELS: Record<Role, Record<'en' | 'ar', string>> = {
   admin: { en: 'Admin', ar: 'إدارة' },
@@ -21,10 +22,10 @@ export function AdminPage() {
   const [authed, setAuthed] = useState(false);
   const [checking, setChecking] = useState(true);
   const [role, setRole] = useState<Role | null>(null);
-  const [section, setSectionState] = useState<'website' | 'inventory'>(
-    () => (sessionStorage.getItem('bc-admin-section') as 'website' | 'inventory') || 'website'
+  const [section, setSectionState] = useState<'website' | 'inventory' | 'orders'>(
+    () => (sessionStorage.getItem('bc-admin-section') as 'website' | 'inventory' | 'orders') || 'website'
   );
-  function setSection(s: 'website' | 'inventory') {
+  function setSection(s: 'website' | 'inventory' | 'orders') {
     setSectionState(s);
     sessionStorage.setItem('bc-admin-section', s);
   }
@@ -95,14 +96,18 @@ export function AdminPage() {
   // Role-based visibility
   const canSeeWebsite = role === 'admin' || role === 'chef' || role === 'accounting';
   const canSeeInventory = role === 'admin' || role === 'accounting' || role === 'chef';
+  const canSeeOrders = role === 'admin' || role === 'chef';
 
   // Determine available sections for this role
-  const sections: { key: 'website' | 'inventory'; label: string; icon: React.ReactNode }[] = [];
+  const sections: { key: 'website' | 'inventory' | 'orders'; label: string; icon: React.ReactNode }[] = [];
   if (canSeeWebsite) {
     sections.push({ key: 'website', label: tr('section_website'), icon: <Globe className="size-4" /> });
   }
   if (canSeeInventory) {
     sections.push({ key: 'inventory', label: tr('section_inventory'), icon: <Warehouse className="size-4" /> });
+  }
+  if (canSeeOrders) {
+    sections.push({ key: 'orders', label: 'Orders', icon: <ShoppingBag className="size-4" /> });
   }
 
   return (
@@ -190,6 +195,11 @@ export function AdminPage() {
             <TabsContent value="stock"><InventoryTab l={l} role={role!} /></TabsContent>
             <TabsContent value="requisitions"><RequisitionsTab l={l} role={role!} /></TabsContent>
           </Tabs>
+        )}
+
+        {/* Orders section — admin & chef only */}
+        {section === 'orders' && canSeeOrders && (
+          <OrdersTab l={l} />
         )}
       </main>
     </div>
