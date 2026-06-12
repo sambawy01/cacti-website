@@ -184,3 +184,53 @@ export async function archiveOrder(password: string, rowIndex: number): Promise<
   });
   if (!res.success) throw new Error(res.error || 'Failed to archive order');
 }
+
+// ── CRM Orders (capacity workflow) ──
+
+export type OrderStatus =
+  | 'New' // legacy rows
+  | 'pending_approval'
+  | 'confirmed'
+  | 'preparing'
+  | 'out_for_delivery'
+  | 'delivered'
+  | 'declined'
+  | 'cancelled';
+
+export interface CRMOrder {
+  _rowIndex: number;
+  id: number | string;
+  timestamp: string;
+  name: string;
+  phone: string;
+  email: string;
+  delivery_area: string;
+  address: string;
+  order_total: number | string;
+  order_summary: string;
+  item_count: number | string;
+  delivery_date: string;
+  delivery_slot: string;
+  tracking_token: string;
+  status: string;
+  notes: string;
+}
+
+export async function getCRMOrders(password: string): Promise<CRMOrder[]> {
+  const res = await apiGet<{ success: boolean; items?: CRMOrder[]; error?: string }>({
+    action: 'getCRMOrders',
+    password,
+  });
+  if (!res.success) throw new Error(res.error || 'Failed to fetch orders');
+  return res.items || [];
+}
+
+export async function setOrderStatus(password: string, rowIndex: number, status: OrderStatus): Promise<void> {
+  const res = await apiGet<{ success: boolean; error?: string }>({
+    action: 'setOrderStatus',
+    password,
+    rowIndex: String(rowIndex),
+    status,
+  });
+  if (!res.success) throw new Error(res.error || 'Failed to update order status');
+}
