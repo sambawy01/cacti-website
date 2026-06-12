@@ -17,6 +17,7 @@ const STATUS_BADGE: Record<string, { label: string; className: string }> = {
   delivered: { label: 'Delivered', className: 'bg-green-100 text-green-800 border-green-200' },
   declined: { label: 'Declined', className: 'bg-red-100 text-red-800 border-red-200' },
   cancelled: { label: 'Cancelled', className: 'bg-gray-100 text-gray-600 border-gray-200' },
+  New: { label: 'Legacy', className: 'bg-gray-100 text-gray-600 border-gray-200' },
 };
 
 // Sort: pending first, then active statuses by slot, then finished rows.
@@ -43,13 +44,14 @@ export function OrdersTab({ l }: { l: AdminLang }) {
 
   const fetchOrders = useCallback(async () => {
     const pw = getStoredPassword();
-    if (!pw) return;
+    if (!pw) { setLoading(false); return; }
     try {
       const data = await getCRMOrders(pw);
       data.sort((a, b) => {
         const oa = STATUS_ORDER[a.status] ?? 2;
         const ob = STATUS_ORDER[b.status] ?? 2;
         if (oa !== ob) return oa - ob;
+        // slots are zero-padded HH:mm; lexicographic = chronological
         return String(a.delivery_slot).localeCompare(String(b.delivery_slot));
       });
       setOrders(data);
@@ -69,7 +71,7 @@ export function OrdersTab({ l }: { l: AdminLang }) {
     if (!pw) return;
     setBusyRow(order._rowIndex);
     try {
-      await setOrderStatus(pw, order._rowIndex, status);
+      await setOrderStatus(pw, order._rowIndex, status, String(order.id));
       toast.success(`Order → ${STATUS_BADGE[status]?.label ?? status}`);
       await fetchOrders();
     } catch {
@@ -164,7 +166,7 @@ export function OrdersTab({ l }: { l: AdminLang }) {
               <TableRow key={order._rowIndex} className={order.status === 'pending_approval' ? 'bg-amber-50/50' : undefined}>
                 <TableCell className="font-medium whitespace-nowrap">
                   {slotLabel12h(String(order.delivery_slot))}
-                  <div className="text-xs text-muted-foreground">{String(order.delivery_date || '')}</div>
+                  {order.delivery_date ? <div className="text-xs text-muted-foreground">{String(order.delivery_date)}</div> : null}
                 </TableCell>
                 <TableCell className="font-medium">{order.name || '—'}</TableCell>
                 <TableCell className="text-muted-foreground">{order.phone || order.email || '—'}</TableCell>

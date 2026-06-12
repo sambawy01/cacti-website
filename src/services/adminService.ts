@@ -225,12 +225,13 @@ export async function getCRMOrders(password: string): Promise<CRMOrder[]> {
   return res.items || [];
 }
 
-export async function setOrderStatus(password: string, rowIndex: number, status: OrderStatus): Promise<void> {
+export async function setOrderStatus(password: string, rowIndex: number, status: OrderStatus, orderId: string): Promise<void> {
   const res = await apiGet<{ success: boolean; error?: string }>({
     action: 'setOrderStatus',
     password,
     rowIndex: String(rowIndex),
     status,
+    orderId: String(orderId),
   });
   if (!res.success) throw new Error(res.error || 'Failed to update order status');
 }

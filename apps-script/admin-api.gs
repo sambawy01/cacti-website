@@ -146,7 +146,7 @@ function doGet(e) {
       case 'archiveOrder':
         return jsonpResponse(callback, adminArchiveOrder(parseInt(params.rowIndex)));
       case 'setOrderStatus':
-        return jsonpResponse(callback, orderSetStatus(parseInt(params.rowIndex), params.status));
+        return jsonpResponse(callback, orderSetStatus(parseInt(params.rowIndex), params.status, params.orderId));
       // ── Inventory (Stock) CRUD ──
       case 'getStock':
         return jsonpResponse(callback, inventoryGetAll());
@@ -882,7 +882,7 @@ function sendOrderDeclineEmail(orderInfo, openSlotLabels) {
  *  → declined                  : decline email with open alternatives
  * Phase 2 adds status-update emails for preparing/out_for_delivery/delivered.
  */
-function orderSetStatus(rowIndex, newStatus) {
+function orderSetStatus(rowIndex, newStatus, orderId) {
   if (ORDER_STATUSES.indexOf(newStatus) < 0) throw new Error('Invalid status: ' + newStatus);
   var sheet = crmGetSheet('Orders');
   var lastCol = sheet.getLastColumn();
@@ -897,6 +897,10 @@ function orderSetStatus(rowIndex, newStatus) {
   var row = {};
   for (var j = 0; j < headers.length; j++) row[headers[j]] = rowVals[j];
   var prevStatus = String(row.status);
+
+  if (orderId !== undefined && orderId !== null && String(orderId) !== '' && String(row.id) !== String(orderId)) {
+    throw new Error('Order mismatch — the list is stale. Refresh and try again.');
+  }
 
   sheet.getRange(rowIndex, statusCol + 1).setValue(newStatus);
 
