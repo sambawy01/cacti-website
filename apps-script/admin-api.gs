@@ -834,6 +834,9 @@ function sendOrderConfirmationEmail(orderInfo) {
         '<p style="color: #333; margin: 0; white-space: pre-line;">' + escapeHtml(orderInfo.orderSummary) + '</p>' +
         '<p style="color: #2C3E50; font-weight: bold; margin: 10px 0 0;">Total: ' + escapeHtml(orderInfo.orderTotal) + ' EGP</p>' +
       '</div>';
+    inner += '<div style="text-align: center; margin: 25px 0;">' +
+      '<a href="' + orderTrackingUrl(orderInfo.trackingToken) + '" style="display: inline-block; background: #D94E28; color: white; padding: 12px 30px; border-radius: 8px; text-decoration: none; font-weight: bold;">Track your order</a>' +
+    '</div>';
     MailApp.sendEmail({
       to: orderInfo.email,
       subject: 'Bistro Cloud — order confirmed for ' + slotLabel,
@@ -872,6 +875,54 @@ function sendOrderDeclineEmail(orderInfo, openSlotLabels) {
   } catch (error) {
     Logger.log('Decline email failed: ' + error.toString());
   }
+}
+
+// ============ CAPACITY: STATUS UPDATE EMAILS ============
+
+var STATUS_EMAIL_COPY = {
+  preparing: {
+    subject: 'Your Bistro Cloud order is being prepared',
+    heading: 'The kitchen is on it!',
+    body: 'Your order is being freshly prepared right now.',
+  },
+  out_for_delivery: {
+    subject: 'Your Bistro Cloud order is out for delivery',
+    heading: 'On the way!',
+    body: 'Your order has left the kitchen and is on its way to you.',
+  },
+  delivered: {
+    subject: 'Your Bistro Cloud order has been delivered',
+    heading: 'Enjoy your meal!',
+    body: 'Your order has been delivered. Thank you for ordering with Bistro Cloud!',
+  },
+};
+
+/** orderInfo: { name, email, deliverySlot, trackingToken }, status: key of STATUS_EMAIL_COPY */
+function sendStatusUpdateEmail(orderInfo, status) {
+  try {
+    if (!orderInfo.email) return;
+    var copy = STATUS_EMAIL_COPY[status];
+    if (!copy) return;
+    var inner = '<h2 style="color: #2C3E50; margin-top: 0;">' + copy.heading + '</h2>' +
+      '<p style="color: #555; line-height: 1.6;">' + copy.body + '</p>' +
+      '<p style="color: #555; line-height: 1.6;">Scheduled time: <strong>' + slotLabel12h(orderInfo.deliverySlot) + '</strong></p>' +
+      '<div style="text-align: center; margin: 25px 0;">' +
+        '<a href="' + orderTrackingUrl(orderInfo.trackingToken) + '" style="display: inline-block; background: #D94E28; color: white; padding: 12px 30px; border-radius: 8px; text-decoration: none; font-weight: bold;">Track your order</a>' +
+      '</div>';
+    MailApp.sendEmail({
+      to: orderInfo.email,
+      subject: copy.subject,
+      htmlBody: bistroEmailWrap(inner),
+      name: 'Bistro Cloud El Gouna',
+      replyTo: NOTIFICATION_EMAIL,
+    });
+  } catch (error) {
+    Logger.log('Status email failed: ' + error.toString());
+  }
+}
+
+function orderTrackingUrl(token) {
+  return 'https://bistro-cloud.com/track?token=' + token;
 }
 
 // ============ CAPACITY: ADMIN STATUS MANAGEMENT ============
@@ -933,8 +984,9 @@ function orderSetStatus(rowIndex, newStatus, orderId) {
     updatePipelineForOrder(row.id, 'Lost', 'Closed');
   } else if (newStatus === 'cancelled') {
     updatePipelineForOrder(row.id, 'Lost', 'Closed');
+  } else if (newStatus === 'preparing' || newStatus === 'out_for_delivery' || newStatus === 'delivered') {
+    sendStatusUpdateEmail(orderInfo, newStatus);
   }
-  // Phase 2 hook: status-update emails for preparing/out_for_delivery/delivered.
 
   invalidateAvailabilityCache();
   return { success: true, status: newStatus };
