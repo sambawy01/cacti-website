@@ -102,7 +102,7 @@ function doGet(e) {
     try {
       if (action === 'getAvailability') return jsonpResponse(callback, orderGetAvailability());
       if (action === 'placeOrder') return jsonpResponse(callback, orderPlace(params));
-      return jsonpResponse(callback, orderGetStatus(params.token));
+      return jsonpResponse(callback, orderGetStatus(params.token, params.password));
     } catch (err) {
       Logger.log('Public order action failed (' + action + '): ' + err);
       return jsonpResponse(callback, { success: false, error: 'Something went wrong. Please try again.' });
@@ -806,26 +806,46 @@ function orderPlace(params) {
   };
 }
 
-function orderGetStatus(token) {
+// `password` is optional. When a valid role password is supplied, the response
+// also includes private fields (phone/address/note/paymentMethod) that the
+// Telegram approve path needs to build a Loyverse receipt. Public callers (the
+// customer tracking page) pass no password and get only the safe fields.
+function orderGetStatus(token, password) {
   if (!token) return { success: false, error: 'Missing token' };
+  var includePrivate = password ? !!getRole(password) : false;
   var orders = crmReadRows('Orders');
   for (var i = orders.length - 1; i >= 0; i--) {
     if (String(orders[i].tracking_token) === String(token)) {
       var o = orders[i];
-      return {
-        success: true,
-        order: {
-          name: String(o.name || ''),
-          status: String(o.status || ''),
-          deliveryDate: String(o.delivery_date || ''),
-          deliverySlot: String(o.delivery_slot || ''),
-          orderSummary: String(o.order_summary || ''),
-          orderTotal: o.order_total || '',
-        },
+      var order = {
+        name: String(o.name || ''),
+        status: String(o.status || ''),
+        deliveryDate: String(o.delivery_date || ''),
+        deliverySlot: String(o.delivery_slot || ''),
+        orderSummary: String(o.order_summary || ''),
+        orderTotal: o.order_total || '',
       };
+      if (includePrivate) {
+        order.phone = String(o.phone || '');
+        order.address = String(o.address || '');
+        order.note = String(o.notes || '');
+        order.paymentMethod = paymentMethodFromNotes(String(o.notes || ''));
+      }
+      return { success: true, order: order };
     }
   }
   return { success: false, error: 'Order not found' };
+}
+
+// Reverse-map the payment-label prefix stored in the notes column back to the
+// payment-method code (orderPlace writes 'Cash on delivery' / 'Card on delivery
+// (POS at door)' / 'Instapay (bank transfer)' as the notes prefix).
+function paymentMethodFromNotes(notes) {
+  var n = String(notes || '');
+  if (n.indexOf('Cash on delivery') === 0) return 'cod';
+  if (n.indexOf('Card on delivery') === 0) return 'card_on_delivery';
+  if (n.indexOf('Instapay') === 0) return 'instapay';
+  return '';
 }
 
 // ============ CAPACITY: KITCHEN CALENDAR ============
@@ -1056,7 +1076,10 @@ function orderSetStatus(rowIndex, newStatus, orderId) {
   }
 
   invalidateAvailabilityCache();
-  return { success: true, status: newStatus };
+  // previousStatus lets callers (the Telegram webhook) detect the genuine
+  // pending_approval -> confirmed transition and avoid re-running one-time side
+  // effects (e.g. the Loyverse receipt push) on a re-tap or webhook redelivery.
+  return { success: true, status: newStatus, previousStatus: prevStatus };
 }
 
 /**
