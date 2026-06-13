@@ -15,6 +15,7 @@ export interface PlaceOrderInput {
   itemCount: number;
   deliverySlot: string;
   expectedStatus: "open" | "busy";
+  note: string;
 }
 
 export type PlaceOrderResult =
@@ -48,6 +49,7 @@ export async function placeOrder(input: PlaceOrderInput): Promise<PlaceOrderResu
     itemCount: String(input.itemCount),
     deliverySlot: input.deliverySlot,
     expectedStatus: input.expectedStatus,
+    note: input.note,
   });
 }
 

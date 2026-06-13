@@ -76,6 +76,13 @@ describe("POST /api/order", () => {
     expect(res.status).toBe(502);
   });
 
+  it("forwards note to placeOrder", async () => {
+    (placeOrder as any).mockResolvedValue({ success: true, status: "confirmed", trackingToken: "t", deliverySlot: "14:30", deliveryDate: "2026-06-13" });
+    const res = await POST(req({ ...validBody, note: "No nuts please" }));
+    expect(res.status).toBe(200);
+    expect(placeOrder).toHaveBeenCalledWith(expect.objectContaining({ note: "No nuts please" }));
+  });
+
   it("answers OPTIONS preflight with CORS", async () => {
     const res = await OPTIONS();
     expect(res.status).toBe(204);

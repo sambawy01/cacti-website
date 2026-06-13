@@ -25,6 +25,16 @@ describe("buildOrderMessage", () => {
     expect(t).toContain("Grilled Chicken");
     expect(t).toContain("+201001234567");
   });
+
+  it("includes the note line when note is present", () => {
+    const t = buildOrderMessage({ ...order, note: "No nuts please" });
+    expect(t).toContain("📝 No nuts please");
+  });
+
+  it("omits the note line when note is absent", () => {
+    const t = buildOrderMessage(order);
+    expect(t).not.toContain("📝");
+  });
 });
 
 describe("keyboardForStatus", () => {

@@ -701,7 +701,7 @@ function orderPlace(params) {
       delivery_slot: slotParam,
       tracking_token: token,
       status: outcome,
-      notes: '',
+      notes: params.note || '',
     });
 
     // Force the slot/date/token cells of the row we just appended to plain text.

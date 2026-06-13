@@ -6,6 +6,7 @@ export interface OrderForMessage {
   phone: string;
   email: string;
   address: string;
+  note?: string;
   orderSummary: string;
   orderTotal: number;
   itemCount: number;
@@ -34,19 +35,23 @@ export function buildOrderMessage(o: OrderForMessage): string {
   const header = o.status === "pending_approval"
     ? "🟠 NEW ORDER (busy slot — needs approval)"
     : "🟢 NEW ORDER (confirmed)";
-  return [
+  const lines: string[] = [
     header,
     "",
     `👤 ${o.name}  ·  ${o.phone}`,
     `✉️ ${o.email}`,
     `📍 ${o.address}`,
+  ];
+  if (o.note) lines.push(`📝 ${o.note}`);
+  lines.push(
     `🕒 ${slotLabel(o.deliverySlot)} today`,
     `💳 ${PAYMENT_LABEL[o.paymentMethod]}`,
     "",
     o.orderSummary,
     "",
     `Total: ${o.orderTotal} EGP  ·  ${o.itemCount} item(s)`,
-  ].join("\n");
+  );
+  return lines.join("\n");
 }
 
 const ACTION_STATUS: Record<string, OrderStatus> = {

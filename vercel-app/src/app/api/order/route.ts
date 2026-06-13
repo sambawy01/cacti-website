@@ -30,7 +30,7 @@ export async function POST(request: Request): Promise<Response> {
     result = await placeOrder({
       name: order.name, phone: order.phone, email: order.email, address: order.address,
       orderTotal: order.orderTotal, orderSummary: order.orderSummary, itemCount: order.itemCount,
-      deliverySlot: order.deliverySlot, expectedStatus: order.expectedStatus,
+      deliverySlot: order.deliverySlot, expectedStatus: order.expectedStatus, note: order.note,
     });
   } catch (err) {
     console.error("[order] Apps Script call failed:", err);
@@ -49,7 +49,7 @@ export async function POST(request: Request): Promise<Response> {
         name: order.name, phone: order.phone, email: order.email, address: order.address,
         orderSummary: order.orderSummary, orderTotal: order.orderTotal, itemCount: order.itemCount,
         deliverySlot: order.deliverySlot, paymentMethod: order.paymentMethod,
-        trackingToken: result.trackingToken, status: result.status,
+        trackingToken: result.trackingToken, status: result.status, note: order.note,
       });
       await sendMessage(process.env.TELEGRAM_OWNER_CHAT_ID, text, keyboardForStatus(result.status, result.trackingToken));
     } catch (err) {
