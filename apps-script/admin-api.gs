@@ -147,6 +147,8 @@ function doGet(e) {
         return jsonpResponse(callback, adminArchiveOrder(parseInt(params.rowIndex)));
       case 'setOrderStatus':
         return jsonpResponse(callback, orderSetStatus(parseInt(params.rowIndex), params.status, params.orderId));
+      case 'setOrderStatusByToken':
+        return jsonpResponse(callback, orderSetStatusByToken(params.token, params.status));
       // ── Inventory (Stock) CRUD ──
       case 'getStock':
         return jsonpResponse(callback, inventoryGetAll());
@@ -771,14 +773,16 @@ function orderPlace(params) {
     createKitchenEvent(orderInfo);
     sendOrderConfirmationEmail(orderInfo);
   }
-  sendInternalNotification({
-    name: params.name,
-    phone: params.phone,
-    deliverySlot: slotLabel12h(slotParam),
-    status: outcome,
-    orderTotal: params.orderTotal,
-    orderSummary: params.orderSummary,
-  }, 'order');
+  if (String(params.channel || '') !== 'web') {
+    sendInternalNotification({
+      name: params.name,
+      phone: params.phone,
+      deliverySlot: slotLabel12h(slotParam),
+      status: outcome,
+      orderTotal: params.orderTotal,
+      orderSummary: params.orderSummary,
+    }, 'order');
+  }
 
   return {
     success: true,
@@ -786,6 +790,7 @@ function orderPlace(params) {
     trackingToken: token,
     deliverySlot: slotParam,
     deliveryDate: avail.date,
+    id: id,
   };
 }
 
@@ -1027,6 +1032,37 @@ function orderSetStatus(rowIndex, newStatus, orderId) {
 
   invalidateAvailabilityCache();
   return { success: true, status: newStatus };
+}
+
+/**
+ * Token-keyed wrapper around orderSetStatus, for callers (the Telegram
+ * webhook) that know the order's tracking_token but not its sheet row index
+ * (row indices shift when rows are deleted). Looks up the row by
+ * tracking_token, then applies the existing orderSetStatus logic + side
+ * effects (confirm/decline/status emails, kitchen calendar, Pipeline sync,
+ * cache invalidation, the order-id stale guard).
+ */
+function orderSetStatusByToken(token, newStatus) {
+  if (!token) throw new Error('Missing token');
+  var sheet = crmGetSheet('Orders');
+  var lastRow = sheet.getLastRow();
+  var lastCol = sheet.getLastColumn();
+  if (lastRow < 2 || lastCol === 0) throw new Error('No orders');
+  var headers = sheet.getRange(1, 1, 1, lastCol).getValues()[0].map(function (h) {
+    return String(h).trim().toLowerCase().replace(/ /g, '_');
+  });
+  var tokCol = headers.indexOf('tracking_token');
+  var idCol = headers.indexOf('id');
+  if (tokCol < 0) throw new Error('tracking_token column not found');
+  var tokens = sheet.getRange(2, tokCol + 1, lastRow - 1, 1).getValues();
+  for (var i = 0; i < tokens.length; i++) {
+    if (String(tokens[i][0]) === String(token)) {
+      var rowIndex = i + 2;
+      var orderId = idCol >= 0 ? sheet.getRange(rowIndex, idCol + 1).getValue() : undefined;
+      return orderSetStatus(rowIndex, newStatus, orderId);
+    }
+  }
+  return { success: false, error: 'Order not found' };
 }
 
 // Keep the Pipeline tab roughly in sync with order status changes.
