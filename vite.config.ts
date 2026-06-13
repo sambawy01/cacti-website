@@ -1,4 +1,5 @@
 import { defineConfig } from 'vite'
+import { configDefaults } from 'vitest/config'
 import path from 'path'
 import fs from 'fs'
 import tailwindcss from '@tailwindcss/vite'
@@ -86,4 +87,10 @@ export default defineConfig({
 
   // File types to support raw imports. Never add .css, .tsx, or .ts files to this.
   assetsInclude: ['**/*.svg', '**/*.csv'],
+
+  // The vercel-app/ directory is a separate npm project with its own vitest
+  // config and "@" alias; keep its tests out of the root suite.
+  test: {
+    exclude: [...configDefaults.exclude, 'vercel-app/**'],
+  },
 })
