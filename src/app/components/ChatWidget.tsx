@@ -102,7 +102,7 @@ export function ChatWidget() {
             initial={{ opacity: 0, y: 20, scale: 0.95 }}
             animate={{ opacity: 1, y: 0, scale: 1 }}
             exit={{ opacity: 0, y: 20, scale: 0.95 }}
-            className="fixed bottom-24 right-4 md:right-6 w-[calc(100vw-2rem)] md:w-[380px] h-[520px] bg-white rounded-2xl shadow-2xl border border-gray-200 flex flex-col overflow-hidden z-50"
+            className="fixed bottom-24 left-4 md:left-6 w-[calc(100vw-2rem)] md:w-[380px] h-[520px] bg-white rounded-2xl shadow-2xl border border-gray-200 flex flex-col overflow-hidden z-50"
           >
             <div className="bg-[#2C3E50] text-white px-4 py-3 flex items-center gap-3 shrink-0">
               <div className="w-9 h-9 bg-[#D94E28] rounded-full flex items-center justify-center text-xs font-bold">BC</div>
@@ -148,13 +148,13 @@ export function ChatWidget() {
       <AnimatePresence>
         {showBadge && !isOpen && (
           <motion.div
-            initial={{ opacity: 0, x: 20, scale: 0.9 }}
+            initial={{ opacity: 0, x: -20, scale: 0.9 }}
             animate={{ opacity: 1, x: 0, scale: 1 }}
-            exit={{ opacity: 0, x: 20, scale: 0.9 }}
-            className="fixed bottom-20 right-4 md:right-6 bg-white rounded-2xl shadow-2xl border border-gray-100 p-4 z-50 max-w-[260px] cursor-pointer"
+            exit={{ opacity: 0, x: -20, scale: 0.9 }}
+            className="fixed bottom-20 left-4 md:left-6 bg-white rounded-2xl shadow-2xl border border-gray-100 p-4 z-50 max-w-[260px] cursor-pointer"
             onClick={() => { setIsOpen(true); setShowBadge(false); }}
           >
-            <div className="absolute -bottom-2 right-6 w-4 h-4 bg-white border-r border-b border-gray-100 rotate-45" />
+            <div className="absolute -bottom-2 left-6 w-4 h-4 bg-white border-r border-b border-gray-100 rotate-45" />
             <p className="text-sm text-[#2C3E50] font-semibold mb-1">Need help? Ask our AI!</p>
             <p className="text-xs text-gray-500">Menu, prices, delivery, dietary info — I can answer instantly.</p>
           </motion.div>
@@ -164,7 +164,7 @@ export function ChatWidget() {
       {/* Floating bubble */}
       <button
         onClick={() => setIsOpen(!isOpen)}
-        className="fixed bottom-4 right-4 md:right-6 w-[64px] h-[64px] bg-[#D94E28] rounded-full flex items-center justify-center shadow-xl shadow-[#D94E28]/40 hover:scale-110 transition-transform z-50"
+        className="fixed bottom-4 left-4 md:left-6 w-[64px] h-[64px] bg-[#D94E28] rounded-full flex items-center justify-center shadow-xl shadow-[#D94E28]/40 hover:scale-110 transition-transform z-50"
       >
         {isOpen ? (
           <X className="w-7 h-7 text-white" />
