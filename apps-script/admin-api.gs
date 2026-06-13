@@ -860,6 +860,7 @@ function orderGetStatus(token, password) {
         orderTotal: o.order_total || '',
       };
       if (includePrivate) {
+        order.email = String(o.email || '');
         order.phone = String(o.phone || '');
         order.address = String(o.address || '');
         order.note = String(o.notes || '');
@@ -911,6 +912,10 @@ function createKitchenEvent(orderInfo) {
 
 // ============ CAPACITY: CUSTOMER EMAILS ============
 
+// NOTE: Vercel (Resend) now owns customer email — see vercel-app/src/lib/email.ts.
+// These Apps Script email functions are a dormant fallback: the web app's executing
+// identity lacks the script.external_request / script.send_mail OAuth scopes, so the
+// sends below fail silently (errors are caught and logged, never thrown).
 // Sends an email via Resend (verified domain bistro-cloud.com) when
 // RESEND_API_KEY is set in Script Properties; otherwise falls back to MailApp
 // so mail still goes out. Returns true on success.
