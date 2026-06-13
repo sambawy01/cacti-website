@@ -4,8 +4,7 @@ import { Button } from './ui/button';
 import { Minus, Plus, Trash2, ShoppingBag } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { toast } from 'sonner';
-import { submitOrder } from '../../services/crmService';
-import { getAvailability, placeOrderLive, slotLabel, Availability, SlotInfo } from '../../services/orderService';
+import { getAvailability, slotLabel, Availability, SlotInfo } from '../../services/orderService';
 
 // Local fallback when the availability service is unreachable: same slot
 // generation the site used before capacity control (fail open).
@@ -28,7 +27,7 @@ function fallbackSlots(): SlotInfo[] {
 
 export function CartDrawer() {
   const { items, removeItem, updateQuantity, clearCart, totalPrice, isCartOpen, toggleCart } = useCart();
-  const [paymentMethod, setPaymentMethod] = React.useState('Cash on Delivery');
+  const [paymentMethod, setPaymentMethod] = React.useState('cod');
   const [orderNotes, setOrderNotes] = React.useState('')
   const [address, setAddress] = React.useState('');
   const [customerName, setCustomerName] = React.useState(() => localStorage.getItem('bc_name') || '');
@@ -41,6 +40,7 @@ export function CartDrawer() {
   const [selectedSlot, setSelectedSlot] = React.useState<string>('asap');
 
   const [isSubmitting, setIsSubmitting] = React.useState(false);
+  const [orderResult, setOrderResult] = React.useState<import('../../services/orderService').OnSiteOrderResult | null>(null);
 
   const applyAvailability = React.useCallback((a: Availability | null) => {
     setAvailability(a);
@@ -71,124 +71,55 @@ export function CartDrawer() {
   const handleCheckout = async () => {
     if (isSubmitting || checkoutBlocked) return;
     setIsSubmitting(true);
-
     try {
-      // Require name and phone before checkout
+      const email = customerEmail.trim();
+      const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
       if (!customerName.trim() || !customerPhone.trim()) {
-        alert('Please enter your name and phone number to place an order.');
+        alert('Please enter your name and phone number.');
         return;
       }
-
-      // Remember customer details for next time
+      if (!EMAIL_RE.test(email)) {
+        alert('Please enter a valid email — we use it to send your order and delivery updates.');
+        return;
+      }
       localStorage.setItem('bc_name', customerName.trim());
       localStorage.setItem('bc_phone', customerPhone.trim());
-      if (customerEmail.trim()) localStorage.setItem('bc_email', customerEmail.trim());
-      else localStorage.removeItem('bc_email');
+      localStorage.setItem('bc_email', email);
 
-      const orderSummary = items.map(item =>
-        `${item.quantity}x ${item.name} (${item.price * item.quantity} EGP)`
-      ).join('\n');
-      const itemCount = items.reduce((sum, item) => sum + item.quantity, 0);
+      // Resolve the chosen slot (ASAP → earliest open) and its expected state.
+      const slotTime = selectedSlot === 'asap' ? availability?.asap : selectedSlot;
+      if (!slotTime) {
+        alert('Please pick a delivery time.');
+        return;
+      }
+      const expectedStatus: 'open' | 'busy' =
+        selectedSlot === 'asap' ? 'open' : (selectedSlotInfo?.status ?? 'open');
 
-      // Open the WhatsApp tab synchronously (popup blockers require this);
-      // we point it at the right URL after the capacity check completes.
-      const waWindow = window.open('', '_blank');
-      try { waWindow?.document.write('<p style="font-family: sans-serif; padding: 24px;">Placing your order…</p>'); } catch {}
-      const navigateTo = (url: string) => {
-        if (waWindow) waWindow.location.href = url;
-        else window.location.href = url;
-      };
-      const baseText = `Hi Bistro Cloud! I'd like to place an order:\n\n${orderSummary}\n\nTotal: ${totalPrice} EGP\nPayment Method: ${paymentMethod}`;
-      const contactText = `${customerName ? '\nName: ' + customerName : ''}${customerPhone ? '\nPhone: ' + customerPhone : ''}${orderNotes ? '\nNotes: ' + orderNotes : ''}`;
+      const { placeOrderOnSite } = await import('../../services/orderService');
+      const result = await placeOrderOnSite({
+        items: items.map((it) => ({ name: it.name, quantity: it.quantity, price: it.price })),
+        name: customerName.trim(),
+        phone: customerPhone.trim(),
+        email,
+        address: address || orderNotes,
+        note: orderNotes,
+        deliverySlot: slotTime,
+        expectedStatus,
+        paymentMethod: paymentMethod as 'cod' | 'card_on_delivery' | 'instapay',
+      });
 
-      if (availability && !availability.paused) {
-        // ── Capacity-checked flow ──
-        const slotTime = selectedSlot === 'asap' ? availability.asap : selectedSlot;
-        if (!slotTime) {
-          waWindow?.close();
-          toast.error('No delivery times are available right now.');
-          return;
-        }
-        const expectedStatus = selectedSlot === 'asap'
-          ? 'open'
-          : (selectedSlotInfo?.status ?? 'open');
-
-        let result;
-        try {
-          result = await placeOrderLive({
-            name: customerName.trim(),
-            phone: customerPhone.trim(),
-            email: customerEmail.trim(),
-            address: address || orderNotes,
-            deliveryArea: 'El Gouna',
-            orderTotal: totalPrice,
-            orderSummary,
-            itemCount,
-            deliverySlot: slotTime,
-            expectedStatus,
-          });
-        } catch {
-          // Network error mid-submit: fail open to the legacy flow.
-          const url = `https://wa.me/201221288804?text=${encodeURIComponent(
-            `${baseText}\nDelivery Time: ${slotLabel(slotTime)}${contactText}\n\nPlease confirm delivery time.`)}`;
-          const legacySave = () => submitOrder({
-            name: customerName, phone: customerPhone, address: address || orderNotes,
-            deliveryArea: 'El Gouna', orderTotal: totalPrice, orderSummary,
-          }).catch(err => console.error('CRM save failed:', err));
-          clearCart();
-          toggleCart();
-          if (waWindow) { navigateTo(url); legacySave(); }
-          else { await legacySave(); navigateTo(url); }
-          return;
-        }
-
-        if (!result.success) {
-          waWindow?.close();
-          if (result.code === 'busy_retry') {
-            toast.error("We're receiving a lot of orders right now — please try again in a few seconds.");
-            return;
-          }
-          if (result.code === 'daily_limit') {
-            toast.error("We've reached today's order limit — please WhatsApp us directly.");
-            return;
-          }
-          // slot_full / slot_unavailable: the slot filled or vanished — refresh the picker.
-          if (result.availability) applyAvailability(result.availability);
-          else getAvailability().then(applyAvailability);
-          toast.error('That delivery time just filled up — please pick another one.');
-          return;
-        }
-
-        const label = slotLabel(result.deliverySlot);
-        const timeLine = result.status === 'pending_approval'
-          ? `Requested Time: ${label} (busy slot — pending your confirmation)`
-          : `Delivery Time: ${label} (confirmed)`;
-        const url = `https://wa.me/201221288804?text=${encodeURIComponent(
-          `${baseText}\n${timeLine}${contactText}\nTrack: https://bistro-cloud.com/track?token=${result.trackingToken}`)}`;
+      if (result.ok) {
+        setOrderResult(result);
         clearCart();
-        toggleCart();
-        navigateTo(url);
-
-        if (result.status === 'pending_approval') {
-          toast.success(`Order received! ${label} is busy — we'll confirm your time shortly.`);
-        } else {
-          toast.success(`Order confirmed for ${label}!`);
-        }
+      } else if (result.code === 'slot_full' || result.code === 'slot_unavailable') {
+        await getAvailability().then(applyAvailability);
+        toast.error('That delivery time just filled up — please pick another.');
+      } else if (result.code === 'busy_retry') {
+        toast.error("We're receiving a lot of orders right now — please try again in a few seconds.");
+      } else if (result.code === 'daily_limit') {
+        toast.error("We've reached today's order limit — please WhatsApp us directly.");
       } else {
-        // Reached only when availability === null (service unreachable). The paused /
-        // no-slots cases never get here — checkoutBlocked disables checkout entirely.
-        // ── Legacy flow (availability service unreachable) ──
-        const slotTimeLabel = selectedSlot === 'asap' ? 'As soon as possible' : slotLabel(selectedSlot);
-        const url = `https://wa.me/201221288804?text=${encodeURIComponent(
-          `${baseText}\nDelivery Time: ${slotTimeLabel}${contactText}\n\nPlease confirm delivery time.`)}`;
-        const legacySave = () => submitOrder({
-          name: customerName, phone: customerPhone, address: address || orderNotes,
-          deliveryArea: 'El Gouna', orderTotal: totalPrice, orderSummary,
-        }).catch(err => console.error('CRM save failed:', err));
-        clearCart();
-        toggleCart();
-        if (waWindow) { navigateTo(url); legacySave(); }
-        else { await legacySave(); navigateTo(url); }
+        toast.error(result.error || "Couldn't place your order. Please try again.");
       }
     } finally {
       setIsSubmitting(false);
@@ -227,6 +158,42 @@ export function CartDrawer() {
               </button>
             </div>
 
+            {orderResult && orderResult.ok ? (
+              <div className="flex-1 overflow-y-auto p-6">
+                <div className="text-center py-6">
+                  <div className="w-16 h-16 mx-auto mb-4 rounded-full bg-green-100 flex items-center justify-center text-green-600 text-3xl">✓</div>
+                  <h3 className="font-montserrat font-bold text-xl text-gray-800 mb-1">
+                    {orderResult.status === 'pending_approval' ? 'Order received!' : 'Order confirmed!'}
+                  </h3>
+                  <p className="text-gray-500 text-sm">
+                    {orderResult.status === 'pending_approval'
+                      ? "That time is busy — we'll confirm your delivery time shortly."
+                      : `Scheduled for ${slotLabel(orderResult.deliverySlot)} today.`}
+                  </p>
+                </div>
+                <div className="bg-[#F9F5F0] rounded-xl p-4 mb-4 text-sm text-gray-700">
+                  {orderResult.paymentMethod === 'cod' && <p>💵 <strong>Pay cash on delivery.</strong></p>}
+                  {orderResult.paymentMethod === 'card_on_delivery' && <p>💳 <strong>Pay by card on delivery</strong> — our driver brings a card machine.</p>}
+                  {orderResult.paymentMethod === 'instapay' && (
+                    <div>
+                      <p className="mb-1">🏦 <strong>Instapay / bank transfer:</strong></p>
+                      <p className="whitespace-pre-line">{orderResult.instapay}</p>
+                      <p className="mt-1 text-gray-500">Transfer the total and we'll confirm your order.</p>
+                    </div>
+                  )}
+                </div>
+                <a
+                  href={`/track?token=${orderResult.trackingToken}`}
+                  className="block text-center bg-[#D94E28] text-white font-bold rounded-xl py-3 mb-3"
+                >
+                  Track your order
+                </a>
+                <button onClick={() => { setOrderResult(null); toggleCart(); }} className="block w-full text-center text-gray-500 text-sm py-2">
+                  Done
+                </button>
+              </div>
+            ) : (
+              <>
             <div className="flex-1 overflow-y-auto p-6 space-y-6">
               {items.length === 0 ? (
                 <div className="h-full flex flex-col items-center justify-center text-center space-y-4">
@@ -318,12 +285,13 @@ export function CartDrawer() {
                 )}
 
                 <div className="mb-6">
-                  <h3 className="font-bold text-gray-800 mb-3 text-sm">Email <span className="font-normal text-gray-500">(optional — for order updates)</span></h3>
+                  <h3 className="font-bold text-gray-800 mb-3 text-sm">Email <span className="text-[#D94E28]">*</span> <span className="font-normal text-gray-500">(for order & delivery updates)</span></h3>
                   <input
                     type="email"
                     value={customerEmail}
                     onChange={(e) => setCustomerEmail(e.target.value)}
                     placeholder="you@example.com"
+                    required
                     className="w-full p-3 rounded-lg border border-gray-200 bg-white text-sm focus:outline-none focus:ring-2 focus:ring-[#D94E28]/20 focus:border-[#D94E28]"
                   />
                 </div>
@@ -336,8 +304,12 @@ export function CartDrawer() {
                     className="w-full p-3 rounded-lg border border-gray-200 bg-white text-sm font-medium text-gray-700 focus:outline-none focus:ring-2 focus:ring-[#D94E28]/20 focus:border-[#D94E28] appearance-none"
                     style={{ backgroundImage: 'url("data:image/svg+xml,%3Csvg xmlns=\'http://www.w3.org/2000/svg\' width=\'12\' height=\'12\' viewBox=\'0 0 12 12\'%3E%3Cpath fill=\'%23666\' d=\'M6 8L1 3h10z\'/%3E%3C/svg%3E")', backgroundRepeat: 'no-repeat', backgroundPosition: 'right 12px center' }}
                   >
-                    {['Cash on Delivery', 'Instapay', 'Credit/Debit Card'].map((method) => (
-                      <option key={method} value={method}>{method}</option>
+                    {[
+                      { value: 'cod', label: 'Cash on Delivery' },
+                      { value: 'card_on_delivery', label: 'Card on Delivery (card machine at your door)' },
+                      { value: 'instapay', label: 'Instapay (bank transfer)' },
+                    ].map((m) => (
+                      <option key={m.value} value={m.value}>{m.label}</option>
                     ))}
                   </select>
                 </div>
@@ -415,6 +387,8 @@ export function CartDrawer() {
                   Free delivery across all of El Gouna
                 </p>
               </div>
+            )}
+              </>
             )}
           </motion.div>
         </>
