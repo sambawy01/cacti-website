@@ -19,10 +19,17 @@ vi.mock("@/lib/appsScript", () => ({
     order: {
       name: "Sara Ali", status: "confirmed", deliveryDate: "2026-06-13", deliverySlot: "14:30",
       orderSummary: "2x Grilled Chicken (400 EGP)", orderTotal: 400,
+      email: "sara@example.com",
       phone: "+201001234567", address: "12 West Golf", note: "Instapay (bank transfer)", paymentMethod: "instapay",
     },
   })),
   delayOrder: vi.fn(async () => ({ success: true, oldLabel: "2:30 PM", newLabel: "3:00 PM" })),
+}));
+vi.mock("@/lib/email", () => ({
+  statusEmail: vi.fn(() => ({ subject: "status-subject", html: "<p>status</p>" })),
+  declineEmail: vi.fn(() => ({ subject: "decline-subject", html: "<p>decline</p>" })),
+  delayEmail: vi.fn(() => ({ subject: "delay-subject", html: "<p>delay</p>" })),
+  sendEmail: vi.fn(async () => ({ ok: true })),
 }));
 vi.mock("@/lib/telegram", () => ({
   answerCallbackQuery: vi.fn(async () => ({ ok: true, status: 200 })),
@@ -41,6 +48,7 @@ import { POST } from "./route";
 import { setOrderStatusByToken, getOrderStatus, delayOrder } from "@/lib/appsScript";
 import { answerCallbackQuery, editMessageText, editMessageReplyMarkup, sendMessage } from "@/lib/telegram";
 import { pushReceipt } from "@/lib/loyverse";
+import { statusEmail, declineEmail, delayEmail, sendEmail } from "@/lib/email";
 
 const SECRET = "hook-secret";
 
@@ -65,6 +73,8 @@ beforeEach(() => {
   process.env.TELEGRAM_BOT_TOKEN = "tok";
   process.env.TELEGRAM_WEBHOOK_SECRET = SECRET;
   process.env.TELEGRAM_OWNER_CHAT_ID = "999";
+  process.env.RESEND_API_KEY = "re_test";
+  (sendEmail as any).mockResolvedValue({ ok: true });
 });
 
 describe("POST /api/telegram/webhook", () => {
@@ -243,5 +253,89 @@ describe("POST /api/telegram/webhook", () => {
     expect(delayOrder).not.toHaveBeenCalled();
     expect(setOrderStatusByToken).not.toHaveBeenCalled();
     expect(answerCallbackQuery).toHaveBeenCalled();
+  });
+});
+
+// ── Customer emails via Vercel/Resend (deferred, non-fatal) ──
+describe("POST /api/telegram/webhook — customer emails", () => {
+  it("a 'preparing' advance sends a preparing status email (deferred)", async () => {
+    const res = await POST(req(update("preparing:tok-p")));
+    expect(res.status).toBe(200);
+    expect(sendEmail).not.toHaveBeenCalled(); // deferred until after the response
+    await flushAfter();
+    expect(getOrderStatus).toHaveBeenCalledWith("tok-p", true);
+    expect(statusEmail).toHaveBeenCalledWith(
+      "preparing",
+      expect.objectContaining({ name: "Sara Ali", deliverySlot: "14:30", trackingToken: "tok-p" }),
+    );
+    expect(sendEmail).toHaveBeenCalledWith("sara@example.com", "status-subject", "<p>status</p>");
+  });
+
+  it("an 'otd' advance sends an out_for_delivery status email", async () => {
+    await POST(req(update("otd:tok-o")));
+    await flushAfter();
+    expect(statusEmail).toHaveBeenCalledWith(
+      "out_for_delivery",
+      expect.objectContaining({ trackingToken: "tok-o" }),
+    );
+    expect(sendEmail).toHaveBeenCalledOnce();
+  });
+
+  it("a 'delivered' advance sends a delivered status email", async () => {
+    await POST(req(update("delivered:tok-dv")));
+    await flushAfter();
+    expect(statusEmail).toHaveBeenCalledWith("delivered", expect.objectContaining({ trackingToken: "tok-dv" }));
+    expect(sendEmail).toHaveBeenCalledOnce();
+  });
+
+  it("an 'approve' (confirmed) advance sends NO status/decline email", async () => {
+    await POST(req(update("approve:tok-a")));
+    await flushAfter(); // runs only the Loyverse push
+    expect(statusEmail).not.toHaveBeenCalled();
+    expect(declineEmail).not.toHaveBeenCalled();
+  });
+
+  it("a 'decline' sends a decline email (deferred)", async () => {
+    await POST(req(update("decline:tok-x")));
+    await flushAfter();
+    expect(declineEmail).toHaveBeenCalledWith(
+      expect.objectContaining({ name: "Sara Ali", deliverySlot: "14:30" }),
+    );
+    expect(sendEmail).toHaveBeenCalledWith("sara@example.com", "decline-subject", "<p>decline</p>");
+  });
+
+  it("a 'delay30' sends a delay email with old/new labels (deferred)", async () => {
+    await POST(req(update("delay30:tok-d")));
+    expect(sendEmail).not.toHaveBeenCalled(); // deferred
+    await flushAfter();
+    expect(delayEmail).toHaveBeenCalledWith(
+      expect.objectContaining({ name: "Sara Ali", oldLabel: "2:30 PM", newLabel: "3:00 PM", trackingToken: "tok-d" }),
+    );
+    expect(sendEmail).toHaveBeenCalledWith("sara@example.com", "delay-subject", "<p>delay</p>");
+  });
+
+  it("a failed delayOrder sends NO delay email", async () => {
+    (delayOrder as any).mockResolvedValueOnce({ success: false, error: "Order not found" });
+    await POST(req(update("delay30:tok-nf")));
+    await flushAfter();
+    expect(delayEmail).not.toHaveBeenCalled();
+    expect(sendEmail).not.toHaveBeenCalled();
+  });
+
+  it("email failures are non-fatal — a thrown sendEmail never breaks the flush or the 200", async () => {
+    (sendEmail as any).mockRejectedValue(new Error("resend down"));
+    const res = await POST(req(update("preparing:tok-f")));
+    expect(res.status).toBe(200);
+    await expect(flushAfter()).resolves.toBeUndefined();
+  });
+
+  it("does not send any email when the order has no email on file", async () => {
+    (getOrderStatus as any).mockResolvedValueOnce({
+      success: true,
+      order: { name: "X", status: "preparing", deliveryDate: "", deliverySlot: "14:30", orderSummary: "", orderTotal: 0 },
+    });
+    await POST(req(update("preparing:tok-noemail")));
+    await flushAfter();
+    expect(sendEmail).not.toHaveBeenCalled();
   });
 });

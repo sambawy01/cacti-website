@@ -17,11 +17,16 @@ async function flushAfter(): Promise<void> {
 vi.mock("@/lib/appsScript", () => ({ placeOrder: vi.fn(), orderFinalize: vi.fn(async () => ({ success: true })) }));
 vi.mock("@/lib/telegram", () => ({ telegramConfigured: vi.fn(() => true), sendMessage: vi.fn(async () => ({ ok: true, status: 200 })) }));
 vi.mock("@/lib/loyverse", () => ({ loyverseConfigured: vi.fn(() => true), pushReceipt: vi.fn(async () => ({ ok: true })) }));
+vi.mock("@/lib/email", () => ({
+  confirmationEmail: vi.fn(() => ({ subject: "Bistro Cloud — order confirmed", html: "<p>confirm</p>" })),
+  sendEmail: vi.fn(async () => ({ ok: true })),
+}));
 
 import { POST, OPTIONS, runOrderSideEffects } from "./route";
 import { placeOrder, orderFinalize } from "@/lib/appsScript";
 import { sendMessage } from "@/lib/telegram";
 import { pushReceipt } from "@/lib/loyverse";
+import { confirmationEmail, sendEmail } from "@/lib/email";
 import type { ValidatedOrder } from "@/lib/validation";
 
 function req(body: unknown): Request {
@@ -45,6 +50,9 @@ beforeEach(() => {
   process.env.INSTAPAY_DETAILS = "Bank: CIB, Acct: 100012345678";
   (pushReceipt as any).mockResolvedValue({ ok: true });
   (orderFinalize as any).mockResolvedValue({ success: true });
+  process.env.RESEND_API_KEY = "re_test";
+  (sendEmail as any).mockResolvedValue({ ok: true });
+  (confirmationEmail as any).mockReturnValue({ subject: "Bistro Cloud — order confirmed", html: "<p>confirm</p>" });
 });
 
 describe("POST /api/order", () => {
@@ -198,6 +206,41 @@ describe("runOrderSideEffects (deferred work)", () => {
     await runOrderSideEffects(order, confirmed);
     expect(orderFinalize).toHaveBeenCalledWith("tok-1", "Bank: CIB, Acct: 100012345678");
     expect(sendMessage).toHaveBeenCalledOnce();
+    expect(pushReceipt).toHaveBeenCalledOnce();
+  });
+
+  it("sends the confirmation email (deferred) for a confirmed order, with instapay details", async () => {
+    await runOrderSideEffects(order, confirmed);
+    expect(confirmationEmail).toHaveBeenCalledWith(
+      expect.objectContaining({
+        name: "Sara Ali",
+        orderTotal: 400,
+        deliverySlot: "14:30",
+        paymentMethod: "instapay",
+        instapayDetails: "Bank: CIB, Acct: 100012345678",
+        trackingToken: "tok-1",
+      }),
+    );
+    expect(sendEmail).toHaveBeenCalledOnce();
+    expect(sendEmail).toHaveBeenCalledWith("sara@example.com", "Bistro Cloud — order confirmed", "<p>confirm</p>");
+  });
+
+  it("does NOT send a confirmation email for a pending_approval order", async () => {
+    await runOrderSideEffects(order, { ...confirmed, status: "pending_approval" });
+    expect(confirmationEmail).not.toHaveBeenCalled();
+    expect(sendEmail).not.toHaveBeenCalled();
+  });
+
+  it("confirmation email is non-fatal: a sendEmail {ok:false} doesn't stop Telegram/Loyverse", async () => {
+    (sendEmail as any).mockResolvedValue({ ok: false, error: "Resend HTTP 500" });
+    await expect(runOrderSideEffects(order, confirmed)).resolves.toBeUndefined();
+    expect(sendMessage).toHaveBeenCalledOnce();
+    expect(pushReceipt).toHaveBeenCalledOnce();
+  });
+
+  it("confirmation email is non-fatal: a thrown sendEmail doesn't break the side-effects", async () => {
+    (sendEmail as any).mockRejectedValue(new Error("kaboom"));
+    await expect(runOrderSideEffects(order, confirmed)).resolves.toBeUndefined();
     expect(pushReceipt).toHaveBeenCalledOnce();
   });
 

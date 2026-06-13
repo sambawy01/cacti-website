@@ -5,6 +5,7 @@ import { telegramConfigured, sendMessage } from "@/lib/telegram";
 import { buildOrderMessage, keyboardForStatus } from "@/lib/orderMessage";
 import { preflight, jsonWithCors } from "@/lib/cors";
 import { loyverseConfigured, pushReceipt } from "@/lib/loyverse";
+import { confirmationEmail, sendEmail } from "@/lib/email";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -35,6 +36,30 @@ export async function runOrderSideEffects(order: ValidatedOrder, result: PlaceOr
         process.env.TELEGRAM_OWNER_CHAT_ID,
         `⚠️ Order finalize failed (calendar/email may not have sent): ${err instanceof Error ? err.message : "unknown error"}`,
       ).catch(() => {});
+    }
+  }
+
+  // 1b. Send the confirmation email from Vercel via Resend (non-fatal). Apps
+  // Script can't send mail (missing OAuth scopes), so Vercel is the real sender.
+  // Only confirmed orders; pending_approval orders are confirmed later via the
+  // Telegram approve flow.
+  if (result.status === "confirmed") {
+    try {
+      const instapayDetails =
+        order.paymentMethod === "instapay" ? (process.env.INSTAPAY_DETAILS || "") : undefined;
+      const { subject, html } = confirmationEmail({
+        name: order.name,
+        orderSummary: order.orderSummary,
+        orderTotal: order.orderTotal,
+        deliverySlot: order.deliverySlot,
+        paymentMethod: order.paymentMethod,
+        instapayDetails,
+        trackingToken: result.trackingToken,
+      });
+      const sent = await sendEmail(order.email, subject, html);
+      if (!sent.ok) console.error("[order] confirmation email failed (non-fatal):", sent.error);
+    } catch (err) {
+      console.error("[order] confirmation email threw (non-fatal):", err);
     }
   }
 

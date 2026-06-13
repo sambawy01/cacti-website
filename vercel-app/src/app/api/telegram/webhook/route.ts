@@ -4,6 +4,7 @@ import { setOrderStatusByToken, getOrderStatus, delayOrder, type OrderStatus } f
 import { answerCallbackQuery, editMessageText, editMessageReplyMarkup, sendMessage, type InlineKeyboard } from "@/lib/telegram";
 import { actionToStatus, keyboardForStatus, delayKeyboard, delayActionMinutes } from "@/lib/orderMessage";
 import { loyverseConfigured, pushReceipt, parseOrderSummary, type LoyverseOrder } from "@/lib/loyverse";
+import { statusEmail, declineEmail, delayEmail, sendEmail, type StatusEmailStatus } from "@/lib/email";
 
 const PAYMENT_METHODS: LoyverseOrder["paymentMethod"][] = ["cod", "card_on_delivery", "instapay"];
 
@@ -75,6 +76,71 @@ async function statusKeyboard(token: string): Promise<InlineKeyboard | undefined
     console.error("[webhook] delay: status fetch failed (non-fatal):", err);
   }
   return undefined;
+}
+
+/** Statuses that trigger a customer status-update email (port of STATUS_EMAIL_COPY keys). */
+const EMAIL_STATUSES = new Set<string>(["preparing", "out_for_delivery", "delivered"]);
+
+/**
+ * Customer email is sent from Vercel via Resend (Apps Script lacks the OAuth
+ * scopes). The webhook only carries the token, so each helper re-fetches the
+ * order (admin-gated, to get email/name/slot) and sends the matching template.
+ * All are non-fatal: they never throw and are deferred via after().
+ */
+async function sendStatusEmailByToken(token: string, status: StatusEmailStatus): Promise<void> {
+  try {
+    const detail = await getOrderStatus(token, true);
+    const o = detail.order;
+    if (!detail.success || !o || !o.email) {
+      console.error("[webhook] status email: no order/email for", token, detail.error);
+      return;
+    }
+    const { subject, html } = statusEmail(status, {
+      name: o.name,
+      deliverySlot: o.deliverySlot,
+      trackingToken: token,
+    });
+    const sent = await sendEmail(o.email, subject, html);
+    if (!sent.ok) console.error("[webhook] status email failed (non-fatal):", sent.error);
+  } catch (err) {
+    console.error("[webhook] status email threw (non-fatal):", err);
+  }
+}
+
+async function sendDeclineEmailByToken(token: string): Promise<void> {
+  try {
+    const detail = await getOrderStatus(token, true);
+    const o = detail.order;
+    if (!detail.success || !o || !o.email) {
+      console.error("[webhook] decline email: no order/email for", token, detail.error);
+      return;
+    }
+    const { subject, html } = declineEmail({
+      name: o.name,
+      deliverySlot: o.deliverySlot,
+      openSlotLabels: [],
+    });
+    const sent = await sendEmail(o.email, subject, html);
+    if (!sent.ok) console.error("[webhook] decline email failed (non-fatal):", sent.error);
+  } catch (err) {
+    console.error("[webhook] decline email threw (non-fatal):", err);
+  }
+}
+
+async function sendDelayEmailByToken(token: string, oldLabel: string, newLabel: string): Promise<void> {
+  try {
+    const detail = await getOrderStatus(token, true);
+    const o = detail.order;
+    if (!detail.success || !o || !o.email) {
+      console.error("[webhook] delay email: no order/email for", token, detail.error);
+      return;
+    }
+    const { subject, html } = delayEmail({ name: o.name, oldLabel, newLabel, trackingToken: token });
+    const sent = await sendEmail(o.email, subject, html);
+    if (!sent.ok) console.error("[webhook] delay email failed (non-fatal):", sent.error);
+  } catch (err) {
+    console.error("[webhook] delay email threw (non-fatal):", err);
+  }
 }
 
 export const runtime = "nodejs";
@@ -171,6 +237,10 @@ export async function POST(request: Request): Promise<Response> {
         const etaLine = r.newLabel ? `⏰ Delayed → new ETA ${r.newLabel}` : "⏰ Delayed";
         await editMessageText(cb.message.chat.id, cb.message.message_id, `${base}\n\n${etaLine}`, kb).catch(() => {});
         await answerCallbackQuery(cb.id, `ETA +${delayMins} min`).catch(() => {});
+        // Email the customer the new ETA (deferred, non-fatal).
+        if (r.newLabel) {
+          after(() => sendDelayEmailByToken(token, r.oldLabel || "", r.newLabel || ""));
+        }
       } else {
         await answerCallbackQuery(cb.id, "Couldn't update").catch(() => {});
       }
@@ -193,6 +263,16 @@ export async function POST(request: Request): Promise<Response> {
       const original = cb.message.text || "Order";
       await editMessageText(cb.message.chat.id, cb.message.message_id, `${original}\n\n— ${STATUS_LABEL[status] || status}`, keyboardForStatus(status, token));
       await answerCallbackQuery(cb.id, STATUS_LABEL[status] || status);
+
+      // Customer email via Vercel/Resend (deferred, non-fatal). preparing /
+      // out_for_delivery / delivered → status email; declined → decline email.
+      // Apps Script can't send mail (missing OAuth scopes), so Vercel owns it.
+      if (EMAIL_STATUSES.has(status)) {
+        after(() => sendStatusEmailByToken(token, status as StatusEmailStatus));
+      } else if (status === "declined") {
+        after(() => sendDeclineEmailByToken(token));
+      }
+
       // Part 2: push the now-confirmed order to Loyverse (non-fatal). Gate on the
       // GENUINE pending_approval -> confirmed transition (r.previousStatus) so a
       // double-tap or a Telegram webhook redelivery can't create a second

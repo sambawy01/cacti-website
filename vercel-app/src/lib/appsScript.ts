@@ -109,6 +109,7 @@ export interface OrderStatusDetail {
     orderSummary: string;
     orderTotal: number | string;
     // Private fields — only returned when a valid admin password is supplied.
+    email?: string;
     phone?: string;
     address?: string;
     note?: string;
