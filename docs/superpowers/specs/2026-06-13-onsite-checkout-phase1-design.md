@@ -8,13 +8,16 @@
 
 The order flow currently shipped (2026-06-12/13) enforces kitchen capacity via a Google Apps Script backend and Google Sheets, but **checkout still hands off to WhatsApp** — the customer is sent to WhatsApp to "confirm," so an order is not a firm on-site sale. Email is optional. Orders are not pushed to the POS, a kitchen display, or Telegram.
 
-The owner wants checkout to become a **confirmed on-site sale** that fans out to multiple systems. A reference implementation exists in the owner's other project, **Holistic Beauty** (`https://github.com/sambawy01/Holistic-Beauty-Website-`): a Next.js backend on Vercel doing on-site cash-on-delivery checkout, email (Resend), Telegram order push with one-tap admin action buttons, and order storage on Vercel Blob. That project has **no payment gateway** (cash-on-delivery only) — so it provides reusable patterns for checkout, Telegram, and email, but not card payments.
+The owner wants checkout to become a **confirmed on-site sale** that fans out to multiple systems. A reference implementation exists in the owner's other project, **Holistic Beauty** (`https://github.com/sambawy01/Holistic-Beauty-Website-`): a Next.js backend on Vercel doing on-site cash-on-delivery checkout, email (Resend), Telegram order push with one-tap admin action buttons, and order storage on Vercel Blob. That project is cash-on-delivery only — so it provides reusable patterns for checkout, Telegram, and email.
+
+**No online payment capture is required.** Card payments are taken **at delivery on the driver's portable POS terminal** (card-on-delivery), so every payment method settles at handover or by manual transfer — there is no payment gateway anywhere in the roadmap.
 
 ## Phased roadmap (context)
 
-- **Phase 1 (this spec):** On-site confirmed checkout; mandatory email; payment = Cash on Delivery + Instapay (show bank info); fan-out to email + Telegram; capacity/admin/calendar preserved.
+- **Phase 1 (this spec):** On-site confirmed checkout; mandatory email; payment = Cash on Delivery + Card on Delivery (driver POS) + Instapay (show bank info); fan-out to email + Telegram; capacity/admin/calendar preserved.
 - **Phase 2 (future):** Loyverse POS integration; each confirmed order pushed into Loyverse, whose Kitchen Display System becomes the kitchen display. Needs Loyverse API access + menu-to-Loyverse item mapping.
-- **Phase 3 (future):** Credit-card payment via an Egypt-capable gateway (Paymob/Kashier). Needs a merchant account.
+
+(A previously-considered Phase 3 — an online card-payment gateway — is **dropped**: card is settled on delivery via the driver's POS, so online prepayment is not needed.)
 
 Each phase is its own spec → plan → build cycle.
 
@@ -22,13 +25,13 @@ Each phase is its own spec → plan → build cycle.
 
 1. Checkout completes **on the website** and produces a firm order — no WhatsApp handoff in the happy path.
 2. **Email is mandatory** so every customer can receive delivery updates.
-3. Payment choice at checkout: **Cash on Delivery** or **Instapay** (Instapay shows the owner's bank/account details for a manual transfer; no gateway).
+3. Payment choice at checkout: **Cash on Delivery**, **Card on Delivery** (paid on the driver's POS terminal at handover), or **Instapay** (shows the owner's bank/account details for a manual transfer). All settle at delivery/transfer — no online capture.
 4. On placement, the order fans out to **email** (customer confirmation + status updates) and **Telegram** (owner push with one-tap status actions).
 5. **Preserve** the capacity engine, admin OrdersTab, kitchen calendar, and the single source of truth (Google Sheets) — reuse, don't replace.
 
 ## Non-goals (Phase 1)
 
-- Credit-card / online payment capture (Phase 3).
+- Online payment capture / a payment gateway — **not needed at all** (card is paid on the driver's POS at delivery).
 - Loyverse POS and a real Kitchen Display System (Phase 2) — the existing kitchen Google Calendar is the interim display.
 - Migrating order storage off Google Sheets, or re-implementing capacity on Vercel.
 - Resend / a new email service — Phase 1 reuses the existing Apps Script email.
@@ -63,7 +66,7 @@ The Vercel backend is intentionally **thin** in Phase 1 (checkout proxy + Telegr
 Lives in a `vercel-app/` directory in the Bistro Cloud repo (mirroring Holistic Beauty's layout) on its own Vercel project. TypeScript, Next.js App Router, nodejs runtime.
 
 - **`POST /api/order`** — the order endpoint.
-  - Validates payload: `items[]`, `name`, `phone`, `email` (**required**, regex-validated), `address`, `deliverySlot` ('HH:mm'), `expectedStatus` ('open'|'busy'), `paymentMethod` ('cod'|'instapay'), optional `note`.
+  - Validates payload: `items[]`, `name`, `phone`, `email` (**required**, regex-validated), `address`, `deliverySlot` ('HH:mm'), `expectedStatus` ('open'|'busy'), `paymentMethod` ('cod'|'card_on_delivery'|'instapay'), optional `note`.
   - Rejects with a clear error if email is missing/invalid or required fields fail.
   - Calls Apps Script `placeOrder` with `channel=web` (see Apps Script changes). Receives `{success, status, trackingToken, deliverySlot, deliveryDate}` or a failure code (`slot_full`, `slot_unavailable`, `busy_retry`, `daily_limit`).
   - On success: fires the Telegram push (non-fatal on failure).
@@ -89,15 +92,15 @@ Env vars (names only): `APPS_SCRIPT_URL`, `APPS_SCRIPT_ADMIN_PASSWORD`, `TELEGRA
 ### C. React frontend (CartDrawer + done view)
 
 - **Email field becomes required** (validated client-side; the placeholder/label marks it required).
-- **Payment selector**: Cash on Delivery + Instapay only (remove the "Credit/Debit Card" option for Phase 1).
+- **Payment selector**: Cash on Delivery, Card on Delivery (driver POS), and Instapay. All three are valid Phase 1 options (none capture payment online).
 - **Checkout button**: "Place Order" replaces "Checkout via WhatsApp". On click it POSTs to Vercel `/api/order` (the capacity-aware slot picker and ASAP logic are unchanged). The synchronous-`window.open`/WhatsApp machinery is removed from the happy path.
-- **Done view** (new): on success, replace the cart contents with a confirmation panel — order confirmed, the tracking link (`/track?token=…`), and payment instructions (COD: "Pay on delivery"; Instapay: the bank details returned by the API + "transfer and we'll confirm"). For `pending_approval`, the panel says the time is busy and will be confirmed shortly.
+- **Done view** (new): on success, replace the cart contents with a confirmation panel — order confirmed, the tracking link (`/track?token=…`), and payment instructions per method (COD: "Pay cash on delivery"; Card on Delivery: "Pay by card on the driver's terminal at delivery"; Instapay: the bank details returned by the API + "transfer and we'll confirm"). For `pending_approval`, the panel says the time is busy and will be confirmed shortly.
 - **Failure handling**: on an API error, show a message and a WhatsApp support link (fallback only); the cart is **not** cleared so the customer can retry.
 - A new `orderService` method `placeOrderOnSite(input)` POSTs to the Vercel endpoint and returns the typed result.
 
 ## Data flow (happy path)
 
-1. Customer submits checkout (valid email, COD/Instapay) → `POST /api/order`.
+1. Customer submits checkout (valid email, COD / Card on Delivery / Instapay) → `POST /api/order`.
 2. Vercel validates → calls Apps Script `placeOrder?channel=web` → capacity lock → writes Orders/Pipeline rows (slot stored as text per the V18 fix) → kitchen calendar event → customer confirmation email.
 3. Vercel sends Telegram push to owner with the order + status buttons.
 4. Vercel returns `{ ok, status, trackingToken, paymentMethod, instapay? }`.
@@ -118,7 +121,7 @@ Env vars (names only): `APPS_SCRIPT_URL`, `APPS_SCRIPT_ADMIN_PASSWORD`, `TELEGRA
 
 - **Vercel `/api/order`**: payload validation (esp. mandatory email), correct Apps Script call with `channel=web`, success mapping, each failure code mapped, Telegram push invoked, Telegram failure non-fatal.
 - **Vercel webhook**: secret verification, each button → correct `setOrderStatus` call, message edit.
-- **Frontend**: checkout form blocks submit without a valid email; done-view variants (COD / Instapay / pending_approval); failure keeps the cart and shows fallback.
+- **Frontend**: checkout form blocks submit without a valid email; done-view variants (COD / Card on Delivery / Instapay / pending_approval); failure keeps the cart and shows fallback.
 - **Live QA**: a real on-site order end-to-end → confirms a row in the Orders sheet (slot stored correctly), a kitchen calendar event, a customer confirmation email, and a Telegram push whose buttons drive status changes + status emails. Clean up test data after.
 
 ## Open configuration (owner provides; not design)
