@@ -66,6 +66,17 @@ export async function setOrderStatusByToken(token: string, status: OrderStatus):
   return appsScriptGet({ action: "setOrderStatusByToken", password, token, status });
 }
 
+/**
+ * Shift an order's delivery slot forward by N minutes (15/30/60) via the
+ * admin-gated Apps Script `delayOrder` action. Apps Script also emails the
+ * customer the new ETA. Returns the human labels for the Telegram confirmation.
+ */
+export async function delayOrder(token: string, minutes: number): Promise<{ success: boolean; newLabel?: string; oldLabel?: string; error?: string }> {
+  const password = process.env.APPS_SCRIPT_ADMIN_PASSWORD;
+  if (!password) throw new Error("APPS_SCRIPT_ADMIN_PASSWORD is not configured");
+  return appsScriptGet({ action: "delayOrder", password, token, minutes: String(minutes) });
+}
+
 export interface OrderStatusDetail {
   success: boolean;
   order?: {

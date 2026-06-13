@@ -55,6 +55,10 @@ export function editMessageText(chatId: string | number, messageId: number, text
   return call("editMessageText", payload);
 }
 
+export function editMessageReplyMarkup(chatId: string | number, messageId: number, keyboard: InlineKeyboard): Promise<TelegramResult> {
+  return call("editMessageReplyMarkup", { chat_id: chatId, message_id: messageId, reply_markup: keyboard });
+}
+
 export function answerCallbackQuery(callbackQueryId: string, text?: string): Promise<TelegramResult> {
   return call("answerCallbackQuery", { callback_query_id: callbackQueryId, ...(text ? { text } : {}) });
 }

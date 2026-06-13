@@ -1,7 +1,7 @@
 import { timingSafeEqual } from "node:crypto";
-import { setOrderStatusByToken, getOrderStatus } from "@/lib/appsScript";
-import { answerCallbackQuery, editMessageText, sendMessage } from "@/lib/telegram";
-import { actionToStatus, keyboardForStatus } from "@/lib/orderMessage";
+import { setOrderStatusByToken, getOrderStatus, delayOrder, type OrderStatus } from "@/lib/appsScript";
+import { answerCallbackQuery, editMessageText, editMessageReplyMarkup, sendMessage, type InlineKeyboard } from "@/lib/telegram";
+import { actionToStatus, keyboardForStatus, delayKeyboard, delayActionMinutes } from "@/lib/orderMessage";
 import { loyverseConfigured, pushReceipt, parseOrderSummary, type LoyverseOrder } from "@/lib/loyverse";
 
 const PAYMENT_METHODS: LoyverseOrder["paymentMethod"][] = ["cod", "card_on_delivery", "instapay"];
@@ -56,6 +56,24 @@ async function pushApprovedOrderToLoyverse(token: string, ownerChatId: number): 
   } catch (err) {
     console.error("[webhook] Loyverse push threw (non-fatal):", err);
   }
+}
+
+/**
+ * Best-effort: fetch the order's CURRENT status and rebuild its normal status
+ * keyboard. Used by the delay flow to swap the delay sub-keyboard back to the
+ * order's real controls. Returns undefined if the status can't be read (caller
+ * then leaves the existing keyboard in place — non-fatal).
+ */
+async function statusKeyboard(token: string): Promise<InlineKeyboard | undefined> {
+  try {
+    const detail = await getOrderStatus(token);
+    if (detail.success && detail.order?.status) {
+      return keyboardForStatus(detail.order.status as OrderStatus, token);
+    }
+  } catch (err) {
+    console.error("[webhook] delay: status fetch failed (non-fatal):", err);
+  }
+  return undefined;
 }
 
 export const runtime = "nodejs";
@@ -115,6 +133,52 @@ export async function POST(request: Request): Promise<Response> {
   }
 
   const [action, token] = cb.data.split(":");
+
+  // ── "Running late" / delay flow (control actions, NOT status changes) ──
+  // Handled before the status path so the delay actions never fall through to
+  // the "Unknown action" branch. Everything here is non-fatal and answers 200.
+  if (token && (action === "delay" || action === "delayback")) {
+    if (action === "delay") {
+      // Swap to the +15/+30/+60 sub-keyboard. Message text unchanged; no state change.
+      await editMessageReplyMarkup(cb.message.chat.id, cb.message.message_id, delayKeyboard(token)).catch(() => {});
+    } else {
+      // Back: restore the order's normal status keyboard (leave as-is if unknown).
+      const kb = await statusKeyboard(token);
+      if (kb) await editMessageReplyMarkup(cb.message.chat.id, cb.message.message_id, kb).catch(() => {});
+    }
+    await answerCallbackQuery(cb.id).catch(() => {});
+    return new Response("ok", { status: 200 });
+  }
+
+  const delayMins = delayActionMinutes(action || "");
+  if (token && delayMins !== null) {
+    try {
+      const r = await delayOrder(token, delayMins);
+      if (r.success) {
+        // Restore the order's CURRENT-status keyboard so the owner can keep acting
+        // (advance status, or delay again). Leave the existing keyboard if status
+        // can't be read.
+        const kb = await statusKeyboard(token);
+        // Strip any prior "Delayed" line so a second delay replaces it rather
+        // than stacking duplicate ETA lines (the owner can delay again).
+        const base = (cb.message.text || "Order")
+          .split("\n")
+          .filter((line) => !line.startsWith("⏰ Delayed"))
+          .join("\n")
+          .replace(/\n+$/, "");
+        const etaLine = r.newLabel ? `⏰ Delayed → new ETA ${r.newLabel}` : "⏰ Delayed";
+        await editMessageText(cb.message.chat.id, cb.message.message_id, `${base}\n\n${etaLine}`, kb).catch(() => {});
+        await answerCallbackQuery(cb.id, `ETA +${delayMins} min`).catch(() => {});
+      } else {
+        await answerCallbackQuery(cb.id, "Couldn't update").catch(() => {});
+      }
+    } catch (err) {
+      console.error("[webhook] delay failed (non-fatal):", err);
+      await answerCallbackQuery(cb.id, "Couldn't update").catch(() => {});
+    }
+    return new Response("ok", { status: 200 });
+  }
+
   const status = actionToStatus(action || "");
   if (!status || !token) {
     await answerCallbackQuery(cb.id, "Unknown action").catch(() => {});
