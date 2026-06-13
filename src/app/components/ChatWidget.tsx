@@ -4,6 +4,7 @@ import { MessageCircle, X, ArrowUp } from 'lucide-react';
 import { ChatMessage } from './ChatMessage';
 import { streamChat, getSessionId, checkClientRateLimit, saveMessages, loadMessages, type ChatMessage as ChatMsg } from '../../services/aiService';
 import { parseAIMessage } from '../../services/aiMessageParser';
+import { useCart } from '../context/CartContext';
 
 interface WidgetMessage {
   role: 'user' | 'assistant';
@@ -27,6 +28,7 @@ export function ChatWidget() {
   const [isStreaming, setIsStreaming] = useState(false);
   const [streamingText, setStreamingText] = useState('');
   const scrollRef = useRef<HTMLDivElement>(null);
+  const { isCartOpen } = useCart();
 
   useEffect(() => {
     const timer = setTimeout(() => setShowBadge(true), 5000);
@@ -93,6 +95,10 @@ export function ChatWidget() {
     e.preventDefault();
     sendMessage(input);
   };
+
+  // Hide the chat widget while the cart drawer is open so it can't overlap
+  // the checkout (the cart is full-screen on mobile).
+  if (isCartOpen) return null;
 
   return (
     <>
