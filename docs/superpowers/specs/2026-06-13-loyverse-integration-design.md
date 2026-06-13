@@ -42,10 +42,10 @@ Logic:
 5. Output a report: created, updated, skipped, and any ambiguous matches for manual review.
 6. Persist the resulting **name → variant_id map** (e.g. to `scripts/loyverse-item-map.json`, committed) for the order push to use, and re-fetched live as the source of truth.
 
-**Open decisions (touch the live POS):**
-- **A. Sync scope:** all 140 items, or only `status = visible` (orderable) ones? Hidden items can't be ordered, so syncing them just clutters the catalog.
-- **B. Existing 13 matches:** update their price to the sheet value, or leave Loyverse's price untouched?
-- **C. Create the missing categories** (Salads, Ramadan) in Loyverse — OK?
+**Decisions (approved by owner 2026-06-13):**
+- **A. Sync scope:** **all 140 items** (including hidden).
+- **B. Existing 13 matches:** **update their price** to the sheet value (sheet is the single source of truth).
+- **C. Categories:** **create the missing categories** (Salads, Ramadan) and file items under Main Course / Salads / Sandwiches / Ramadan.
 
 ## Part 2 — Order push (confirmed order → Loyverse receipt)
 
