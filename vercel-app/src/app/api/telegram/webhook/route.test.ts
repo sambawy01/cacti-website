@@ -26,6 +26,7 @@ vi.mock("@/lib/appsScript", () => ({
   delayOrder: vi.fn(async () => ({ success: true, oldLabel: "2:30 PM", newLabel: "3:00 PM" })),
 }));
 vi.mock("@/lib/email", () => ({
+  confirmationEmail: vi.fn(() => ({ subject: "confirm-subject", html: "<p>confirm</p>" })),
   statusEmail: vi.fn(() => ({ subject: "status-subject", html: "<p>status</p>" })),
   declineEmail: vi.fn(() => ({ subject: "decline-subject", html: "<p>decline</p>" })),
   delayEmail: vi.fn(() => ({ subject: "delay-subject", html: "<p>delay</p>" })),
@@ -48,7 +49,7 @@ import { POST } from "./route";
 import { setOrderStatusByToken, getOrderStatus, delayOrder } from "@/lib/appsScript";
 import { answerCallbackQuery, editMessageText, editMessageReplyMarkup, sendMessage } from "@/lib/telegram";
 import { pushReceipt } from "@/lib/loyverse";
-import { statusEmail, declineEmail, delayEmail, sendEmail } from "@/lib/email";
+import { confirmationEmail, statusEmail, declineEmail, delayEmail, sendEmail } from "@/lib/email";
 
 const SECRET = "hook-secret";
 
@@ -336,6 +337,39 @@ describe("POST /api/telegram/webhook — customer emails", () => {
     });
     await POST(req(update("preparing:tok-noemail")));
     await flushAfter();
+    expect(sendEmail).not.toHaveBeenCalled();
+  });
+
+  // ── Confirmation email on pending_approval → confirmed ──
+
+  it("an Approve (pending_approval → confirmed) sends a confirmation email (deferred)", async () => {
+    const res = await POST(req(update("approve:tok-conf")));
+    expect(res.status).toBe(200);
+    expect(sendEmail).not.toHaveBeenCalled(); // deferred until after the response
+    await flushAfter();
+    expect(getOrderStatus).toHaveBeenCalledWith("tok-conf", true);
+    expect(confirmationEmail).toHaveBeenCalledWith(
+      expect.objectContaining({
+        name: "Sara Ali",
+        orderSummary: "2x Grilled Chicken (400 EGP)",
+        orderTotal: 400,
+        deliverySlot: "14:30",
+        paymentMethod: "instapay",
+        trackingToken: "tok-conf",
+      }),
+    );
+    expect(sendEmail).toHaveBeenCalledWith("sara@example.com", "confirm-subject", "<p>confirm</p>");
+  });
+
+  it("a re-tap (previousStatus already 'confirmed') does NOT resend the confirmation email", async () => {
+    (setOrderStatusByToken as any).mockResolvedValueOnce({
+      success: true,
+      status: "confirmed",
+      previousStatus: "confirmed",
+    });
+    await POST(req(update("approve:tok-retap")));
+    await flushAfter();
+    expect(confirmationEmail).not.toHaveBeenCalled();
     expect(sendEmail).not.toHaveBeenCalled();
   });
 });

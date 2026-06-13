@@ -4,7 +4,8 @@ import { setOrderStatusByToken, getOrderStatus, delayOrder, type OrderStatus } f
 import { answerCallbackQuery, editMessageText, editMessageReplyMarkup, sendMessage, type InlineKeyboard } from "@/lib/telegram";
 import { actionToStatus, keyboardForStatus, delayKeyboard, delayActionMinutes } from "@/lib/orderMessage";
 import { loyverseConfigured, pushReceipt, parseOrderSummary, type LoyverseOrder } from "@/lib/loyverse";
-import { statusEmail, declineEmail, delayEmail, sendEmail, type StatusEmailStatus } from "@/lib/email";
+import { confirmationEmail, statusEmail, declineEmail, delayEmail, sendEmail, type StatusEmailStatus } from "@/lib/email";
+import type { PaymentMethod } from "@/lib/validation";
 
 const PAYMENT_METHODS: LoyverseOrder["paymentMethod"][] = ["cod", "card_on_delivery", "instapay"];
 
@@ -143,6 +144,39 @@ async function sendDelayEmailByToken(token: string, oldLabel: string, newLabel: 
   }
 }
 
+/**
+ * Best-effort: send the order-confirmation email after an owner Approve tap
+ * moves an order from pending_approval → confirmed. Deferred via after() so
+ * the Telegram callback is acknowledged instantly. Never throws.
+ */
+async function sendConfirmationEmailByToken(token: string): Promise<void> {
+  try {
+    const detail = await getOrderStatus(token, true);
+    const o = detail.order;
+    if (!detail.success || !o || !o.email) {
+      console.error("[webhook] confirmation email: no order/email for", token, detail.error);
+      return;
+    }
+    // Validate the stored paymentMethod against the known enum; fall back to cod.
+    const pm = (PAYMENT_METHODS as string[]).includes(o.paymentMethod || "")
+      ? (o.paymentMethod as PaymentMethod)
+      : ("cod" as PaymentMethod);
+    const { subject, html } = confirmationEmail({
+      name: o.name,
+      orderSummary: o.orderSummary,
+      orderTotal: o.orderTotal,
+      deliverySlot: o.deliverySlot,
+      paymentMethod: pm,
+      instapayDetails: pm === "instapay" ? (process.env.INSTAPAY_DETAILS || "") : undefined,
+      trackingToken: token,
+    });
+    const sent = await sendEmail(o.email, subject, html);
+    if (!sent.ok) console.error("[webhook] confirmation email failed (non-fatal):", sent.error);
+  } catch (err) {
+    console.error("[webhook] confirmation email threw (non-fatal):", err);
+  }
+}
+
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 export const maxDuration = 60;
@@ -265,12 +299,20 @@ export async function POST(request: Request): Promise<Response> {
       await answerCallbackQuery(cb.id, STATUS_LABEL[status] || status);
 
       // Customer email via Vercel/Resend (deferred, non-fatal). preparing /
-      // out_for_delivery / delivered → status email; declined → decline email.
+      // out_for_delivery / delivered → status email; declined → decline email;
+      // pending_approval → confirmed (owner Approve) → confirmation email.
       // Apps Script can't send mail (missing OAuth scopes), so Vercel owns it.
       if (EMAIL_STATUSES.has(status)) {
         after(() => sendStatusEmailByToken(token, status as StatusEmailStatus));
       } else if (status === "declined") {
         after(() => sendDeclineEmailByToken(token));
+      }
+
+      // Confirmation email on the genuine pending_approval → confirmed transition.
+      // Uses the same previousStatus guard as the Loyverse push to prevent
+      // double-sends on re-taps or Telegram webhook redeliveries.
+      if (action === "approve" && status === "confirmed" && r.previousStatus === "pending_approval") {
+        after(() => sendConfirmationEmailByToken(token));
       }
 
       // Part 2: push the now-confirmed order to Loyverse (non-fatal). Gate on the
