@@ -166,8 +166,11 @@ async function fetchAllLoyverseItems() {
 // ---------------------------------------------------------------------------
 function buildItemBody({ itemName, categoryId, price, storeId, itemId, variantId }) {
   const variant = {
+    // Loyverse rejects default_price unless pricing type is FIXED (default is
+    // VARIABLE for API-created variants). We want a fixed per-item price.
+    default_pricing_type: 'FIXED',
     default_price: price,
-    stores: [{ store_id: storeId, price }],
+    stores: [{ store_id: storeId, pricing_type: 'FIXED', price }],
   };
   if (variantId) variant.variant_id = variantId; // UPDATE: target existing variant
 
