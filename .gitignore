@@ -1,3 +1,8 @@
 node_modules
 dist
 .env
+.gstack/
+
+# secrets — never commit
+BC web keys.pages
+*.pages
