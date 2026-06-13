@@ -182,8 +182,7 @@ export function CartDrawer() {
                   {orderResult.paymentMethod === 'instapay' && (
                     <div>
                       <p className="mb-1">🏦 <strong>Instapay / bank transfer:</strong></p>
-                      <p className="whitespace-pre-line">{orderResult.instapay}</p>
-                      <p className="mt-1 text-gray-500">Transfer the total and we'll confirm your order.</p>
+                      <p>We've emailed you our bank transfer details. Complete the transfer and we'll confirm your order.</p>
                     </div>
                   )}
                 </div>

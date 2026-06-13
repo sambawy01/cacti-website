@@ -84,7 +84,7 @@ export interface OnSiteOrderInput {
 }
 
 export type OnSiteOrderResult =
-  | { ok: true; status: "confirmed" | "pending_approval"; trackingToken: string; deliverySlot: string; paymentMethod: OnSitePaymentMethod; instapay?: string }
+  | { ok: true; status: "confirmed" | "pending_approval"; trackingToken: string; deliverySlot: string; paymentMethod: OnSitePaymentMethod }
   | { ok: false; code?: "slot_full" | "slot_unavailable" | "busy_retry" | "daily_limit"; error?: string };
 
 /** POST the order to the Vercel backend (the on-site confirmed-sale flow). */
