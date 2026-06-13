@@ -35,6 +35,22 @@ describe("buildOrderMessage", () => {
     const t = buildOrderMessage(order);
     expect(t).not.toContain("📝");
   });
+
+  it("includes a 📍 location line (after the address) when location is present", () => {
+    const t = buildOrderMessage({ ...order, location: "https://maps.app.goo.gl/abc" });
+    expect(t).toContain("📍 https://maps.app.goo.gl/abc");
+    const lines = t.split("\n");
+    const addrIdx = lines.indexOf(`📍 ${order.address}`);
+    const locIdx = lines.indexOf("📍 https://maps.app.goo.gl/abc");
+    expect(addrIdx).toBeGreaterThanOrEqual(0);
+    expect(locIdx).toBe(addrIdx + 1);
+  });
+
+  it("omits the location line when location is absent", () => {
+    const t = buildOrderMessage(order);
+    // Only the address renders with 📍 — exactly one occurrence.
+    expect(t.split("📍").length - 1).toBe(1);
+  });
 });
 
 describe("keyboardForStatus", () => {

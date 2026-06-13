@@ -32,6 +32,8 @@ export interface ValidatedOrder {
   itemCount: number;
   orderTotal: number;
   orderSummary: string;
+  /** Optional customer-supplied pin: a Google-Maps link or free-text spot description. '' when absent. */
+  location: string;
   /** Structured line items (per-unit price), retained for the Loyverse receipt push. */
   items: { name: string; quantity: number; price: number }[];
 }
@@ -87,6 +89,9 @@ export function validateOrderPayload(body: unknown): ValidationResult {
 
   const note = typeof b.note === "string" ? oneLine(b.note).slice(0, 500) : "";
 
+  // OPTIONAL pin: Google-Maps link or free-text spot. Sanitized + capped, never rejected.
+  const location = typeof b.location === "string" ? oneLine(b.location).slice(0, 300) : "";
+
   const deliverySlot = typeof b.deliverySlot === "string" ? b.deliverySlot.trim() : "";
   if (!SLOT_RE.test(deliverySlot)) return { ok: false, error: "Pick a delivery time." };
 
@@ -98,6 +103,6 @@ export function validateOrderPayload(body: unknown): ValidationResult {
 
   return {
     ok: true,
-    value: { name, phone, email, address, note, deliverySlot, expectedStatus, paymentMethod, itemCount, orderTotal, orderSummary: summaryLines.join("\n"), items },
+    value: { name, phone, email, address, note, location, deliverySlot, expectedStatus, paymentMethod, itemCount, orderTotal, orderSummary: summaryLines.join("\n"), items },
   };
 }

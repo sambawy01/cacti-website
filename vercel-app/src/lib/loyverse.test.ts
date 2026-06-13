@@ -111,6 +111,16 @@ describe("buildReceiptBody", () => {
     expect(body.note).toContain("tok-9");
   });
 
+  it("appends a Location: line to the note when location is present", () => {
+    const body = buildReceiptBody(order({ location: "https://maps.app.goo.gl/abc" }), {});
+    expect(body.note).toContain("Location: https://maps.app.goo.gl/abc");
+  });
+
+  it("omits the Location: line from the note when location is absent", () => {
+    const body = buildReceiptBody(order(), {});
+    expect(body.note).not.toContain("Location:");
+  });
+
   it("sets store, device, source and an ISO receipt_date", () => {
     const body = buildReceiptBody(order(), map);
     expect(body.store_id).toBe("39af263c-0119-49b8-9dc0-4fe99d35acba");

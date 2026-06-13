@@ -88,6 +88,21 @@ describe("POST /api/order", () => {
     expect(placeOrder).toHaveBeenCalledWith(expect.objectContaining({ note: "No nuts please" }));
   });
 
+  it("defaults location to '' when the body omits it (placeOrder + pushReceipt)", async () => {
+    (placeOrder as any).mockResolvedValue({ success: true, status: "confirmed", trackingToken: "t", deliverySlot: "14:30", deliveryDate: "2026-06-13" });
+    await POST(req(validBody));
+    expect(placeOrder).toHaveBeenCalledWith(expect.objectContaining({ location: "" }));
+    expect(pushReceipt).toHaveBeenCalledWith(expect.objectContaining({ location: "" }));
+  });
+
+  it("threads a customer-supplied location to placeOrder and pushReceipt", async () => {
+    (placeOrder as any).mockResolvedValue({ success: true, status: "confirmed", trackingToken: "t", deliverySlot: "14:30", deliveryDate: "2026-06-13" });
+    const loc = "https://maps.app.goo.gl/abc";
+    await POST(req({ ...validBody, location: loc }));
+    expect(placeOrder).toHaveBeenCalledWith(expect.objectContaining({ location: loc }));
+    expect(pushReceipt).toHaveBeenCalledWith(expect.objectContaining({ location: loc }));
+  });
+
   it("pushes a confirmed order to Loyverse with the structured cart items", async () => {
     (placeOrder as any).mockResolvedValue({ success: true, status: "confirmed", trackingToken: "tok-7", deliverySlot: "14:30", deliveryDate: "2026-06-13" });
     const res = await POST(req(validBody));

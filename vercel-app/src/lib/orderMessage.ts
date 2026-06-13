@@ -7,6 +7,7 @@ export interface OrderForMessage {
   email: string;
   address: string;
   note?: string;
+  location?: string;
   orderSummary: string;
   orderTotal: number;
   itemCount: number;
@@ -42,6 +43,7 @@ export function buildOrderMessage(o: OrderForMessage): string {
     `✉️ ${o.email}`,
     `📍 ${o.address}`,
   ];
+  if (o.location) lines.push(`📍 ${o.location}`);
   if (o.note) lines.push(`📝 ${o.note}`);
   lines.push(
     `🕒 ${slotLabel(o.deliverySlot)} today`,
