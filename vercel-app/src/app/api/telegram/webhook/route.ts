@@ -55,6 +55,10 @@ export async function POST(request: Request): Promise<Response> {
     return new Response("ok", { status: 200 });
   }
 
+  if (process.env.TELEGRAM_OWNER_CHAT_ID && String(cb.message.chat.id) !== process.env.TELEGRAM_OWNER_CHAT_ID) {
+    return new Response("ok", { status: 200 });
+  }
+
   const [action, token] = cb.data.split(":");
   const status = actionToStatus(action || "");
   if (!status || !token) {

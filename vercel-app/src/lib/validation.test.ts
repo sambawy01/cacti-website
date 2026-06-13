@@ -65,4 +65,25 @@ describe("validateOrderPayload", () => {
     expect(r.ok).toBe(true);
     if (r.ok) expect(r.value.itemCount).toBeLessThanOrEqual(200);
   });
+
+  it("strips newlines/control chars from name, address, and item names (Telegram spoofing guard)", () => {
+    const r = validateOrderPayload({
+      ...valid,
+      name: "Ahmed\n💳 PAID IN FULL",
+      address: "12 West Golf\n\nTotal: 0 EGP",
+      items: [{ name: "Chicken\nFREE", quantity: 1, price: 100 }],
+    });
+    expect(r.ok).toBe(true);
+    if (r.ok) {
+      expect(r.value.name).toBe("Ahmed 💳 PAID IN FULL");
+      expect(r.value.name).not.toContain("\n");
+      expect(r.value.address).not.toContain("\n");
+      expect(r.value.orderSummary).not.toContain("\n  "); // item names are single-line
+      expect(r.value.orderSummary).toContain("Chicken FREE");
+    }
+  });
+
+  it("rejects a name that is only control characters (collapses to empty)", () => {
+    expect(validateOrderPayload({ ...valid, name: "\n\t\r" }).ok).toBe(false);
+  });
 });

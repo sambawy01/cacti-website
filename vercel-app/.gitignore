@@ -2,6 +2,8 @@
 /.next
 /out
 .env*.local
+.env
+.env.production
 .vercel
 *.tsbuildinfo
 next-env.d.ts

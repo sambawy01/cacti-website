@@ -12,6 +12,11 @@ const MAX_DISTINCT_ITEMS = 50;
 const MAX_EMAIL_LEN = 120;
 const MAX_ITEM_COUNT = 200;
 
+/** Collapse newlines/tabs/control chars and runs of whitespace into single spaces. */
+function oneLine(s: string): string {
+  return s.replace(/[\x00-\x1f\x7f]+/g, " ").replace(/\s{2,}/g, " ").trim();
+}
+
 export type PaymentMethod = "cod" | "card_on_delivery" | "instapay";
 const PAYMENT_METHODS: PaymentMethod[] = ["cod", "card_on_delivery", "instapay"];
 
@@ -49,7 +54,7 @@ export function validateOrderPayload(body: unknown): ValidationResult {
   let orderTotal = 0;
   const summaryLines: string[] = [];
   for (const raw of rawItems as RawItem[]) {
-    const name = typeof raw.name === "string" ? raw.name.trim() : "";
+    const name = typeof raw.name === "string" ? oneLine(raw.name) : "";
     const qty = Math.floor(Number(raw.quantity));
     const price = Number(raw.price);
     if (!name || !Number.isFinite(qty) || qty < 1 || !Number.isFinite(price) || price < 0) {
@@ -61,7 +66,7 @@ export function validateOrderPayload(body: unknown): ValidationResult {
   }
   if (itemCount > MAX_ITEM_COUNT) itemCount = MAX_ITEM_COUNT;
 
-  const name = typeof b.name === "string" ? b.name.trim() : "";
+  const name = typeof b.name === "string" ? oneLine(b.name) : "";
   if (name.length < 2 || name.length > 80) return { ok: false, error: "Name is required." };
 
   const phone = typeof b.phone === "string" ? b.phone.trim() : "";
@@ -73,10 +78,10 @@ export function validateOrderPayload(body: unknown): ValidationResult {
     return { ok: false, error: "A valid email is required for order updates." };
   }
 
-  const address = typeof b.address === "string" ? b.address.trim() : "";
+  const address = typeof b.address === "string" ? oneLine(b.address) : "";
   if (address.length < 5 || address.length > 400) return { ok: false, error: "A delivery address is required." };
 
-  const note = typeof b.note === "string" ? b.note.trim().slice(0, 500) : "";
+  const note = typeof b.note === "string" ? oneLine(b.note).slice(0, 500) : "";
 
   const deliverySlot = typeof b.deliverySlot === "string" ? b.deliverySlot.trim() : "";
   if (!SLOT_RE.test(deliverySlot)) return { ok: false, error: "Pick a delivery time." };

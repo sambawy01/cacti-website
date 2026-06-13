@@ -31,6 +31,7 @@ beforeEach(() => {
   vi.clearAllMocks();
   process.env.TELEGRAM_BOT_TOKEN = "tok";
   process.env.TELEGRAM_WEBHOOK_SECRET = SECRET;
+  process.env.TELEGRAM_OWNER_CHAT_ID = "999";
 });
 
 describe("POST /api/telegram/webhook", () => {
@@ -63,6 +64,16 @@ describe("POST /api/telegram/webhook", () => {
 
   it("answers 200 for a non-callback update (e.g. a plain message)", async () => {
     const res = await POST(req({ update_id: 2, message: { message_id: 1, chat: { id: 1 }, text: "hi" } }));
+    expect(res.status).toBe(200);
+    expect(setOrderStatusByToken).not.toHaveBeenCalled();
+  });
+
+  it("ignores callbacks not from the owner chat (owner-id check)", async () => {
+    const foreignUpdate = {
+      update_id: 1,
+      callback_query: { id: "cb1", data: "approve:tok-1", message: { message_id: 55, chat: { id: 12345 }, text: "NEW ORDER" } },
+    };
+    const res = await POST(req(foreignUpdate));
     expect(res.status).toBe(200);
     expect(setOrderStatusByToken).not.toHaveBeenCalled();
   });
