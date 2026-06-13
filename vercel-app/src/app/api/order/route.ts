@@ -25,12 +25,18 @@ export async function POST(request: Request): Promise<Response> {
   }
   const order = v.value;
 
+  if (order.paymentMethod === "instapay" && !process.env.INSTAPAY_DETAILS) {
+    console.error("[order] INSTAPAY_DETAILS env var is not set — instapay confirmation email will have no bank details");
+  }
+
   let result;
   try {
     result = await placeOrder({
       name: order.name, phone: order.phone, email: order.email, address: order.address,
       orderTotal: order.orderTotal, orderSummary: order.orderSummary, itemCount: order.itemCount,
       deliverySlot: order.deliverySlot, expectedStatus: order.expectedStatus, note: order.note,
+      paymentMethod: order.paymentMethod,
+      instapayDetails: order.paymentMethod === "instapay" ? (process.env.INSTAPAY_DETAILS || "") : undefined,
     });
   } catch (err) {
     console.error("[order] Apps Script call failed:", err);
@@ -57,15 +63,11 @@ export async function POST(request: Request): Promise<Response> {
     }
   }
 
-  const response: Record<string, unknown> = {
+  return jsonWithCors({
     ok: true,
     status: result.status,
     trackingToken: result.trackingToken,
     deliverySlot: result.deliverySlot,
     paymentMethod: order.paymentMethod,
-  };
-  if (order.paymentMethod === "instapay") {
-    response.instapay = process.env.INSTAPAY_DETAILS || "Ask us for bank transfer details.";
-  }
-  return jsonWithCors(response, 200);
+  }, 200);
 }

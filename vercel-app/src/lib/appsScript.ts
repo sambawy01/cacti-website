@@ -16,6 +16,8 @@ export interface PlaceOrderInput {
   deliverySlot: string;
   expectedStatus: "open" | "busy";
   note: string;
+  paymentMethod: string;
+  instapayDetails?: string;
 }
 
 export type PlaceOrderResult =
@@ -50,6 +52,8 @@ export async function placeOrder(input: PlaceOrderInput): Promise<PlaceOrderResu
     deliverySlot: input.deliverySlot,
     expectedStatus: input.expectedStatus,
     note: input.note,
+    paymentMethod: input.paymentMethod,
+    instapayDetails: input.instapayDetails || "",
   });
 }
 

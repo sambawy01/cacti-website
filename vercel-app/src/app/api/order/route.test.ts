@@ -34,7 +34,7 @@ describe("POST /api/order", () => {
     expect(placeOrder).not.toHaveBeenCalled();
   });
 
-  it("places a confirmed order, fires Telegram, returns instapay details", async () => {
+  it("places a confirmed order, fires Telegram; instapay not returned to browser; placeOrder called with paymentMethod+instapayDetails", async () => {
     (placeOrder as any).mockResolvedValue({ success: true, status: "confirmed", trackingToken: "tok-9", deliverySlot: "14:30", deliveryDate: "2026-06-13", id: 1 });
     const res = await POST(req(validBody));
     expect(res.status).toBe(200);
@@ -42,15 +42,17 @@ describe("POST /api/order", () => {
     expect(json.ok).toBe(true);
     expect(json.status).toBe("confirmed");
     expect(json.trackingToken).toBe("tok-9");
-    expect(json.instapay).toContain("CIB");
+    expect(json.instapay).toBeUndefined();
     expect(sendMessage).toHaveBeenCalledOnce();
+    expect(placeOrder).toHaveBeenCalledWith(expect.objectContaining({ paymentMethod: "instapay", instapayDetails: "Bank: CIB, Acct: 100012345678" }));
   });
 
-  it("does NOT include instapay details for non-instapay methods", async () => {
+  it("cod order: instapay never in response; placeOrder called with paymentMethod cod", async () => {
     (placeOrder as any).mockResolvedValue({ success: true, status: "confirmed", trackingToken: "t", deliverySlot: "14:30", deliveryDate: "2026-06-13" });
     const res = await POST(req({ ...validBody, paymentMethod: "cod" }));
     const json = await res.json();
     expect(json.instapay).toBeUndefined();
+    expect(placeOrder).toHaveBeenCalledWith(expect.objectContaining({ paymentMethod: "cod", instapayDetails: undefined }));
   });
 
   it("relays a capacity failure code as 409 and does not fire Telegram", async () => {
