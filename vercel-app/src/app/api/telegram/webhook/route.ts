@@ -1,3 +1,4 @@
+import { after } from "next/server";
 import { timingSafeEqual } from "node:crypto";
 import { setOrderStatusByToken, getOrderStatus, delayOrder, type OrderStatus } from "@/lib/appsScript";
 import { answerCallbackQuery, editMessageText, editMessageReplyMarkup, sendMessage, type InlineKeyboard } from "@/lib/telegram";
@@ -201,7 +202,10 @@ export async function POST(request: Request): Promise<Response> {
         r.previousStatus === "pending_approval" &&
         loyverseConfigured()
       ) {
-        await pushApprovedOrderToLoyverse(token, cb.message.chat.id);
+        // Defer the Loyverse push (cold-fetches a ~300-item catalog) so the
+        // owner's Approve tap is acknowledged immediately. Non-fatal either way.
+        const chatId = cb.message.chat.id;
+        after(() => pushApprovedOrderToLoyverse(token, chatId));
       }
     } else {
       await answerCallbackQuery(cb.id, r.error || "Update failed");

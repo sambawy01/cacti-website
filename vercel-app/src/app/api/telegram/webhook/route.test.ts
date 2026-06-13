@@ -1,5 +1,17 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 
+// The approve-path Loyverse push is deferred via after(); capture + run on demand.
+const deferred: Array<() => unknown> = [];
+vi.mock("next/server", () => ({
+  after: (cb: () => unknown) => {
+    deferred.push(cb);
+  },
+}));
+async function flushAfter(): Promise<void> {
+  const cbs = deferred.splice(0);
+  for (const cb of cbs) await cb();
+}
+
 vi.mock("@/lib/appsScript", () => ({
   setOrderStatusByToken: vi.fn(async () => ({ success: true, status: "confirmed", previousStatus: "pending_approval" })),
   getOrderStatus: vi.fn(async () => ({
@@ -49,6 +61,7 @@ function req(body: unknown, secret = SECRET): Request {
 
 beforeEach(() => {
   vi.clearAllMocks();
+  deferred.length = 0;
   process.env.TELEGRAM_BOT_TOKEN = "tok";
   process.env.TELEGRAM_WEBHOOK_SECRET = SECRET;
   process.env.TELEGRAM_OWNER_CHAT_ID = "999";
@@ -72,9 +85,11 @@ describe("POST /api/telegram/webhook", () => {
     expect(answerCallbackQuery).toHaveBeenCalled();
   });
 
-  it("on Approve, pushes the now-confirmed order to Loyverse (fetched by token)", async () => {
+  it("on Approve, pushes the now-confirmed order to Loyverse (fetched by token, deferred)", async () => {
     const res = await POST(req(update("approve:tok-abc")));
     expect(res.status).toBe(200);
+    expect(pushReceipt).not.toHaveBeenCalled(); // deferred until after the response
+    await flushAfter();
     expect(getOrderStatus).toHaveBeenCalledWith("tok-abc", true);
     expect(pushReceipt).toHaveBeenCalledOnce();
     expect(pushReceipt).toHaveBeenCalledWith(expect.objectContaining({
@@ -97,19 +112,22 @@ describe("POST /api/telegram/webhook", () => {
     expect(pushReceipt).not.toHaveBeenCalled();
   });
 
-  it("a Loyverse push failure on Approve warns the owner but still answers 200", async () => {
+  it("a deferred Loyverse push failure on Approve warns the owner but still answers 200", async () => {
     (pushReceipt as any).mockResolvedValueOnce({ ok: false, error: "Loyverse HTTP 500" });
     const res = await POST(req(update("approve:tok-x")));
     expect(res.status).toBe(200);
+    await flushAfter();
     expect(sendMessage).toHaveBeenCalledOnce();
     expect((sendMessage as any).mock.calls[0][1]).toContain("didn't sync to Loyverse");
   });
 
-  it("a thrown getOrderStatus during the push never breaks the 200", async () => {
+  it("a thrown getOrderStatus during the deferred push never breaks the 200", async () => {
     (getOrderStatus as any).mockRejectedValueOnce(new Error("apps script down"));
     const res = await POST(req(update("approve:tok-y")));
     expect(res.status).toBe(200);
     expect(setOrderStatusByToken).toHaveBeenCalled();
+    // The deferred push swallows the error without throwing.
+    await expect(flushAfter()).resolves.toBeUndefined();
   });
 
   it("passes terminal (no-button) keyboard when delivered", async () => {
