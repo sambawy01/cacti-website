@@ -151,6 +151,8 @@ function doGet(e) {
         return jsonpResponse(callback, orderSetStatusByToken(params.token, params.status));
       case 'delayOrder':
         return jsonpResponse(callback, delayOrder(params.token, parseInt(params.minutes)));
+      case 'orderFinalize':
+        return jsonpResponse(callback, orderFinalize(params.token, params.instapayDetails));
       case 'setResendKey':
         PropertiesService.getScriptProperties().setProperty('RESEND_API_KEY', params.key || '');
         return jsonpResponse(callback, { success: true });
@@ -663,6 +665,11 @@ function sheetSafeText(s) {
 function orderPlace(params) {
   var paymentMethod = String(params.paymentMethod || '');
   var instapayDetails = String(params.instapayDetails || '');
+  // Fast-checkout flag (web): when true, SKIP the slow side-effects here
+  // (kitchen calendar, confirmation email, Customers upsert) so the customer
+  // gets an instant response. The Vercel route calls orderFinalize() out-of-band
+  // (via after()) to run them. Non-web callers don't pass defer → unchanged.
+  var defer = String(params.defer || '') === 'true';
   var PAYMENT_LABELS = {
     cod: 'Cash on delivery',
     card_on_delivery: 'Card on delivery (POS at door)',
@@ -773,10 +780,13 @@ function orderPlace(params) {
     }
 
     // Customers ledger is CRM bookkeeping — never fail the order on it.
-    try {
-      upsertCustomer({ phone: params.phone, name: params.name, email: email, address: params.address, location: location });
-    } catch (eCust) {
-      Logger.log('Customers upsert failed (non-fatal): ' + eCust);
+    // Deferred (fast-checkout) orders run this in orderFinalize instead.
+    if (!defer) {
+      try {
+        upsertCustomer({ phone: params.phone, name: params.name, email: email, address: params.address, location: location });
+      } catch (eCust) {
+        Logger.log('Customers upsert failed (non-fatal): ' + eCust);
+      }
     }
 
     // Commit buffered writes BEFORE releasing the lock, or the next
@@ -803,7 +813,9 @@ function orderPlace(params) {
     paymentLabel: paymentLabel,
     instapayDetails: instapayDetails,
   };
-  if (outcome === 'confirmed') {
+  // Deferred (fast-checkout) orders run the calendar + confirmation email in
+  // orderFinalize instead, so the customer isn't kept waiting on them.
+  if (outcome === 'confirmed' && !defer) {
     createKitchenEvent(orderInfo);
     sendOrderConfirmationEmail(orderInfo);
   }
@@ -1119,6 +1131,8 @@ function orderSetStatus(rowIndex, newStatus, orderId) {
     createKitchenEvent(orderInfo);
     sendOrderConfirmationEmail(orderInfo);
     updatePipelineForOrder(row.id, 'Won', 'Completed');
+    try { upsertCustomer({ phone: row.phone, name: row.name, email: row.email, address: row.address, location: '' }); }
+    catch (eCust) { Logger.log('approve upsertCustomer failed (non-fatal): ' + eCust); }
   } else if (newStatus === 'declined') {
     if (prevStatus !== 'declined') {
       var avail = orderGetAvailability().availability;
@@ -1171,6 +1185,94 @@ function orderSetStatusByToken(token, newStatus) {
     }
   }
   return { success: false, error: 'Order not found' };
+}
+
+/**
+ * Deferred finalize for fast-checkout (defer=true) web orders. orderPlace skips
+ * the slow side-effects so the customer gets an instant response; the Vercel
+ * route then calls this out-of-band (via after()) to run them: kitchen calendar,
+ * confirmation email, and the Customers upsert.
+ *
+ * Idempotent — a ScriptCache flag keyed on the token (`finalized:<token>`,
+ * ~6h TTL) makes a retry or webhook redelivery a no-op. Only CONFIRMED orders
+ * finalize here; pending_approval orders finalize on owner approval
+ * (orderSetStatus), and declined/cancelled never finalize.
+ *
+ * `instapayDetails` is optional: it isn't stored on the order row, so the route
+ * passes it through to keep the instapay confirmation email's bank-transfer
+ * block intact. The confirmation email guards on every field, so a missing value
+ * simply omits that block rather than failing.
+ */
+function orderFinalize(token, instapayDetails) {
+  if (!token) return { success: false, error: 'Missing token' };
+
+  // Idempotency guard — set BEFORE doing work so a concurrent retry can't
+  // double-run the side-effects.
+  var cache = CacheService.getScriptCache();
+  var cacheKey = 'finalized:' + token;
+  if (cache.get(cacheKey)) {
+    return { success: true, alreadyDone: true };
+  }
+  cache.put(cacheKey, '1', 21600); // ~6h
+
+  // Look up the Orders row by tracking_token (same pattern as orderSetStatusByToken).
+  var sheet = crmGetSheet('Orders');
+  var lastRow = sheet.getLastRow();
+  var lastCol = sheet.getLastColumn();
+  if (lastRow < 2 || lastCol === 0) return { success: false, error: 'No orders' };
+  var headers = sheet.getRange(1, 1, 1, lastCol).getValues()[0].map(function (h) {
+    return String(h).trim().toLowerCase().replace(/ /g, '_');
+  });
+  var tokCol = headers.indexOf('tracking_token');
+  if (tokCol < 0) throw new Error('tracking_token column not found');
+  var tokens = sheet.getRange(2, tokCol + 1, lastRow - 1, 1).getValues();
+  var rowIndex = -1;
+  for (var i = 0; i < tokens.length; i++) {
+    if (String(tokens[i][0]) === String(token)) { rowIndex = i + 2; break; }
+  }
+  if (rowIndex < 0) return { success: false, error: 'Order not found' };
+
+  var rowVals = sheet.getRange(rowIndex, 1, 1, lastCol).getValues()[0];
+  var row = {};
+  for (var j = 0; j < headers.length; j++) row[headers[j]] = rowVals[j];
+
+  // Only finalize confirmed orders.
+  if (String(row.status) !== 'confirmed') {
+    return { success: true, skipped: String(row.status) };
+  }
+
+  var paymentMethod = paymentMethodFromNotes(String(row.notes || ''));
+  var PAYMENT_LABELS = {
+    cod: 'Cash on delivery',
+    card_on_delivery: 'Card on delivery (POS at door)',
+    instapay: 'Instapay (bank transfer)'
+  };
+  var orderInfo = {
+    name: String(row.name || ''),
+    phone: String(row.phone || ''),
+    email: String(row.email || ''),
+    address: String(row.address || ''),
+    orderTotal: row.order_total || '',
+    orderSummary: String(row.order_summary || ''),
+    itemCount: Number(row.item_count) > 0 ? Number(row.item_count) : 1,
+    deliveryDate: normalizeDateString(row.delivery_date),
+    deliverySlot: normalizeSlotString(row.delivery_slot),
+    trackingToken: String(row.tracking_token || ''),
+    paymentMethod: paymentMethod,
+    paymentLabel: PAYMENT_LABELS[paymentMethod] || '',
+    instapayDetails: String(instapayDetails || '')
+  };
+
+  // Each side-effect is non-fatal and isolated — one failing must not block the others.
+  try { createKitchenEvent(orderInfo); } catch (eCal) { Logger.log('orderFinalize createKitchenEvent failed (non-fatal): ' + eCal); }
+  try { sendOrderConfirmationEmail(orderInfo); } catch (eMail) { Logger.log('orderFinalize sendOrderConfirmationEmail failed (non-fatal): ' + eMail); }
+  // The row address already carries any '\n📍 <location>' suffix — passing it
+  // as-is is acceptable (location stays embedded in address).
+  try {
+    upsertCustomer({ phone: row.phone, name: row.name, email: row.email, address: row.address, location: '' });
+  } catch (eCust) { Logger.log('orderFinalize upsertCustomer failed (non-fatal): ' + eCust); }
+
+  return { success: true };
 }
 
 /**

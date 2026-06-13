@@ -42,6 +42,9 @@ export async function placeOrder(input: PlaceOrderInput): Promise<PlaceOrderResu
   return appsScriptGet<PlaceOrderResult>({
     action: "placeOrder",
     channel: "web",
+    // Fast checkout: Apps Script skips the kitchen calendar, confirmation email,
+    // and Customers upsert; the route runs orderFinalize() out-of-band afterwards.
+    defer: "true",
     name: input.name,
     phone: input.phone,
     email: input.email,
@@ -57,6 +60,23 @@ export async function placeOrder(input: PlaceOrderInput): Promise<PlaceOrderResu
     paymentMethod: input.paymentMethod,
     instapayDetails: input.instapayDetails || "",
   });
+}
+
+/**
+ * Run the deferred side-effects for a fast-checkout order: kitchen calendar,
+ * confirmation email, and Customers upsert. placeOrder (defer=true) skips these
+ * so the customer gets an instant response; this is called out-of-band via
+ * `after()`. Idempotent in Apps Script (ScriptCache flag), so a retry is safe.
+ * `instapayDetails` isn't stored on the row, so we thread it through to keep the
+ * instapay confirmation-email bank block intact.
+ */
+export async function orderFinalize(
+  token: string,
+  instapayDetails?: string,
+): Promise<{ success: boolean; alreadyDone?: boolean; skipped?: string; error?: string }> {
+  const password = process.env.APPS_SCRIPT_ADMIN_PASSWORD;
+  if (!password) throw new Error("APPS_SCRIPT_ADMIN_PASSWORD is not configured");
+  return appsScriptGet({ action: "orderFinalize", password, token, instapayDetails: instapayDetails || "" });
 }
 
 export type OrderStatus =
