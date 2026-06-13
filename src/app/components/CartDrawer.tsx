@@ -41,6 +41,7 @@ export function CartDrawer() {
 
   const [isSubmitting, setIsSubmitting] = React.useState(false);
   const [orderResult, setOrderResult] = React.useState<import('../../services/orderService').OnSiteOrderResult | null>(null);
+  const [checkoutError, setCheckoutError] = React.useState<string | null>(null);
 
   const applyAvailability = React.useCallback((a: Availability | null) => {
     setAvailability(a);
@@ -55,6 +56,7 @@ export function CartDrawer() {
   React.useEffect(() => {
     if (!isCartOpen) return;
     setOrderResult(null);
+    setCheckoutError(null);
     let cancelled = false;
     setAvailLoading(true);
     getAvailability()
@@ -72,6 +74,7 @@ export function CartDrawer() {
   const handleCheckout = async () => {
     if (isSubmitting || checkoutBlocked) return;
     setIsSubmitting(true);
+    setCheckoutError(null);
     try {
       const email = customerEmail.trim();
       const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
@@ -118,8 +121,10 @@ export function CartDrawer() {
         toast.error("We're receiving a lot of orders right now — please try again in a few seconds.");
       } else if (result.code === 'daily_limit') {
         toast.error("We've reached today's order limit — please WhatsApp us directly.");
+        setCheckoutError("We've reached today's order limit.");
       } else {
         toast.error(result.error || "Couldn't place your order. Please try again.");
+        setCheckoutError(result.error || "We couldn't place your order.");
       }
     } finally {
       setIsSubmitting(false);
@@ -377,6 +382,14 @@ export function CartDrawer() {
                   <span className="text-gray-600">Total</span>
                   <span className="font-montserrat font-bold text-2xl text-[#D94E28]">EGP {totalPrice}</span>
                 </div>
+                {checkoutError && (
+                  <div className="mb-3 p-3 rounded-lg bg-red-50 border border-red-200 text-sm text-red-700">
+                    {checkoutError}{' '}
+                    <a href="https://wa.me/201221288804" target="_blank" rel="noopener noreferrer" className="underline font-semibold">
+                      Order via WhatsApp instead
+                    </a>
+                  </div>
+                )}
                 <Button
                   onClick={handleCheckout}
                   disabled={isSubmitting || checkoutBlocked}
