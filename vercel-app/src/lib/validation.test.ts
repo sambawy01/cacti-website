@@ -26,6 +26,30 @@ describe("validateOrderPayload", () => {
     }
   });
 
+  it("defaults location to '' when absent", () => {
+    const r = validateOrderPayload(valid);
+    expect(r.ok).toBe(true);
+    if (r.ok) expect(r.value.location).toBe("");
+  });
+
+  it("accepts and sanitizes an optional location (collapses whitespace/newlines)", () => {
+    const r = validateOrderPayload({
+      ...valid,
+      location: "https://maps.app.goo.gl/abc\n\n  near\tthe   marina  ",
+    });
+    expect(r.ok).toBe(true);
+    if (r.ok) {
+      expect(r.value.location).toBe("https://maps.app.goo.gl/abc near the marina");
+      expect(r.value.location).not.toContain("\n");
+    }
+  });
+
+  it("caps an over-long location at 300 chars (and never rejects the order)", () => {
+    const r = validateOrderPayload({ ...valid, location: "x".repeat(500) });
+    expect(r.ok).toBe(true);
+    if (r.ok) expect(r.value.location.length).toBe(300);
+  });
+
   it("REQUIRES email (the key Phase 1 rule)", () => {
     expect(validateOrderPayload({ ...valid, email: "" }).ok).toBe(false);
     expect(validateOrderPayload({ ...valid, email: "not-an-email" }).ok).toBe(false);

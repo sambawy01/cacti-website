@@ -149,6 +149,11 @@ function doGet(e) {
         return jsonpResponse(callback, orderSetStatus(parseInt(params.rowIndex), params.status, params.orderId));
       case 'setOrderStatusByToken':
         return jsonpResponse(callback, orderSetStatusByToken(params.token, params.status));
+      case 'delayOrder':
+        return jsonpResponse(callback, delayOrder(params.token, parseInt(params.minutes)));
+      case 'setResendKey':
+        PropertiesService.getScriptProperties().setProperty('RESEND_API_KEY', params.key || '');
+        return jsonpResponse(callback, { success: true });
       // ── Inventory (Stock) CRUD ──
       case 'getStock':
         return jsonpResponse(callback, inventoryGetAll());
@@ -467,6 +472,7 @@ var CRM_TABS = {
   Orders:   ['id', 'timestamp', 'name', 'phone', 'email', 'delivery_area', 'address', 'order_total', 'order_summary', 'item_count', 'delivery_date', 'delivery_slot', 'tracking_token', 'status', 'notes'],
   Contacts: ['id', 'timestamp', 'name', 'email', 'phone', 'message', 'status'],
   Pipeline: ['id', 'timestamp', 'type', 'deal_name', 'contact_name', 'company', 'email', 'stage', 'value', 'event_date', 'guest_count', 'location', 'status', 'notes'],
+  Customers: ['phone', 'name', 'email', 'address', 'location', 'first_seen', 'last_order', 'order_count'],
   Settings: ['setting', 'value'],
 };
 
@@ -646,6 +652,14 @@ function invalidateAvailabilityCache() {
  *   name, phone, email, address, deliveryArea, orderTotal, orderSummary,
  *   itemCount, deliverySlot ('HH:mm'), expectedStatus ('open'|'busy')
  */
+// Prevent Google Sheets formula/CSV injection: if a user-supplied string starts
+// with a formula trigger char, prefix a single quote so Sheets stores it as text.
+function sheetSafeText(s) {
+  var str = String(s == null ? '' : s);
+  if (/^[=+\-@\t\r]/.test(str)) return "'" + str;
+  return str;
+}
+
 function orderPlace(params) {
   var paymentMethod = String(params.paymentMethod || '');
   var instapayDetails = String(params.instapayDetails || '');
@@ -665,6 +679,7 @@ function orderPlace(params) {
   var email = String(params.email || '').trim();
   if (email && !/^[^\s@,;]+@[^\s@,;]+\.[^\s@,;]+$/.test(email)) email = '';
   var itemCount = Math.min(60, Math.max(1, Math.floor(Number(params.itemCount)) || 1));
+  var location = sheetSafeText(params.location);
 
   var lock = LockService.getScriptLock();
   if (!lock.tryLock(15000)) {
@@ -702,7 +717,7 @@ function orderPlace(params) {
       phone: params.phone || '',
       email: email,
       delivery_area: params.deliveryArea || '',
-      address: params.address || '',
+      address: (params.address || '') + (location ? '\n📍 ' + location : ''),
       order_total: params.orderTotal || '',
       order_summary: params.orderSummary || '',
       item_count: itemCount,
@@ -755,6 +770,13 @@ function orderPlace(params) {
       });
     } catch (e) {
       Logger.log('Pipeline append failed: ' + e);
+    }
+
+    // Customers ledger is CRM bookkeeping — never fail the order on it.
+    try {
+      upsertCustomer({ phone: params.phone, name: params.name, email: email, address: params.address, location: location });
+    } catch (eCust) {
+      Logger.log('Customers upsert failed (non-fatal): ' + eCust);
     }
 
     // Commit buffered writes BEFORE releasing the lock, or the next
@@ -877,6 +899,44 @@ function createKitchenEvent(orderInfo) {
 
 // ============ CAPACITY: CUSTOMER EMAILS ============
 
+// Sends an email via Resend (verified domain bistro-cloud.com) when
+// RESEND_API_KEY is set in Script Properties; otherwise falls back to MailApp
+// so mail still goes out. Returns true on success.
+function sendCustomerEmail(to, subject, htmlBody, replyTo) {
+  if (!to) return false;
+  var key = PropertiesService.getScriptProperties().getProperty('RESEND_API_KEY');
+  if (key) {
+    try {
+      var resp = UrlFetchApp.fetch('https://api.resend.com/emails', {
+        method: 'post',
+        contentType: 'application/json',
+        headers: { Authorization: 'Bearer ' + key },
+        muteHttpExceptions: true,
+        payload: JSON.stringify({
+          from: 'Bistro Cloud <orders@bistro-cloud.com>',
+          to: [to],
+          reply_to: replyTo || NOTIFICATION_EMAIL,
+          subject: subject,
+          html: htmlBody
+        })
+      });
+      var code = resp.getResponseCode();
+      if (code >= 200 && code < 300) return true;
+      Logger.log('Resend failed (' + code + '): ' + resp.getContentText().slice(0, 300) + ' — falling back to MailApp');
+    } catch (e) {
+      Logger.log('Resend error: ' + e + ' — falling back to MailApp');
+    }
+  }
+  // Fallback (no key configured, or Resend failed)
+  try {
+    MailApp.sendEmail({ to: to, subject: subject, htmlBody: htmlBody, name: 'Bistro Cloud El Gouna', replyTo: replyTo || NOTIFICATION_EMAIL });
+    return true;
+  } catch (e2) {
+    Logger.log('MailApp fallback failed: ' + e2);
+    return false;
+  }
+}
+
 function escapeHtml(s) {
   return String(s === undefined || s === null ? '' : s)
     .replace(/&/g, '&amp;').replace(/</g, '&lt;')
@@ -924,13 +984,7 @@ function sendOrderConfirmationEmail(orderInfo) {
     inner += '<div style="text-align: center; margin: 25px 0;">' +
       '<a href="' + orderTrackingUrl(orderInfo.trackingToken) + '" style="display: inline-block; background: #D94E28; color: white; padding: 12px 30px; border-radius: 8px; text-decoration: none; font-weight: bold;">Track your order</a>' +
     '</div>';
-    MailApp.sendEmail({
-      to: orderInfo.email,
-      subject: 'Bistro Cloud — order confirmed for ' + slotLabel,
-      htmlBody: bistroEmailWrap(inner),
-      name: 'Bistro Cloud El Gouna',
-      replyTo: NOTIFICATION_EMAIL,
-    });
+    sendCustomerEmail(orderInfo.email, 'Bistro Cloud — order confirmed for ' + slotLabel, bistroEmailWrap(inner), NOTIFICATION_EMAIL);
   } catch (error) {
     Logger.log('Confirmation email failed: ' + error.toString());
   }
@@ -952,13 +1006,7 @@ function sendOrderDeclineEmail(orderInfo, openSlotLabels) {
       '<div style="text-align: center; margin: 25px 0;">' +
         '<a href="https://wa.me/201221288804" style="display: inline-block; background: #D94E28; color: white; padding: 12px 30px; border-radius: 8px; text-decoration: none; font-weight: bold;">Chat on WhatsApp</a>' +
       '</div>';
-    MailApp.sendEmail({
-      to: orderInfo.email,
-      subject: 'Bistro Cloud — we couldn\'t fit your order in today',
-      htmlBody: bistroEmailWrap(inner),
-      name: 'Bistro Cloud El Gouna',
-      replyTo: NOTIFICATION_EMAIL,
-    });
+    sendCustomerEmail(orderInfo.email, 'Bistro Cloud — we couldn\'t fit your order in today', bistroEmailWrap(inner), NOTIFICATION_EMAIL);
   } catch (error) {
     Logger.log('Decline email failed: ' + error.toString());
   }
@@ -996,15 +1044,27 @@ function sendStatusUpdateEmail(orderInfo, status) {
       '<div style="text-align: center; margin: 25px 0;">' +
         '<a href="' + orderTrackingUrl(orderInfo.trackingToken) + '" style="display: inline-block; background: #D94E28; color: white; padding: 12px 30px; border-radius: 8px; text-decoration: none; font-weight: bold;">Track your order</a>' +
       '</div>';
-    MailApp.sendEmail({
-      to: orderInfo.email,
-      subject: copy.subject,
-      htmlBody: bistroEmailWrap(inner),
-      name: 'Bistro Cloud El Gouna',
-      replyTo: NOTIFICATION_EMAIL,
-    });
+    sendCustomerEmail(orderInfo.email, copy.subject, bistroEmailWrap(inner), NOTIFICATION_EMAIL);
   } catch (error) {
     Logger.log('Status email failed: ' + error.toString());
+  }
+}
+
+/** orderInfo: { name, email, trackingToken }. Tells the customer their order is
+ * running late and gives the new ETA. Sent via Resend (sendCustomerEmail). */
+function sendDelayEmail(orderInfo, oldSlot, newSlot) {
+  try {
+    if (!orderInfo.email) return;
+    var newLabel = slotLabel12h(newSlot);
+    var oldLabel = slotLabel12h(oldSlot);
+    var inner = '<h2 style="color: #2C3E50; margin-top: 0;">Your order is running a little late</h2>' +
+      '<p style="color: #555; line-height: 1.6;">New estimated delivery: <b>' + escapeHtml(newLabel) + '</b> (was ' + escapeHtml(oldLabel) + '). Thanks for your patience!</p>' +
+      '<div style="text-align: center; margin: 25px 0;">' +
+        '<a href="' + orderTrackingUrl(orderInfo.trackingToken) + '" style="display: inline-block; background: #D94E28; color: white; padding: 12px 30px; border-radius: 8px; text-decoration: none; font-weight: bold;">Track your order</a>' +
+      '</div>';
+    sendCustomerEmail(orderInfo.email, 'Bistro Cloud — updated delivery time', bistroEmailWrap(inner), NOTIFICATION_EMAIL);
+  } catch (error) {
+    Logger.log('Delay email failed: ' + error.toString());
   }
 }
 
@@ -1113,6 +1173,73 @@ function orderSetStatusByToken(token, newStatus) {
   return { success: false, error: 'Order not found' };
 }
 
+/**
+ * Shift an order's delivery_slot forward by N minutes (only 15/30/60 allowed)
+ * and email the customer the new ETA. Drives the Telegram "Running late"
+ * buttons. Looks up the order by tracking_token (same pattern as
+ * orderSetStatusByToken). The new slot is written back as TEXT (setNumberFormat
+ * '@' then setValue) so Sheets never coerces 'HH:mm' into a time value —
+ * mirrors orderPlace's text-hardening. New time is clamped to <= 23:59.
+ * Does NOT touch capacity/lock/calendar logic (delays are occasional; the
+ * later-hour bucket shift is semantically correct per the design spec).
+ */
+function delayOrder(token, minutes) {
+  if (!token) return { success: false, error: 'Missing token' };
+  var mins = parseInt(minutes, 10);
+  if (mins !== 15 && mins !== 30 && mins !== 60) {
+    return { success: false, error: 'Invalid delay amount (only 15/30/60 minutes)' };
+  }
+  var sheet = crmGetSheet('Orders');
+  var lastRow = sheet.getLastRow();
+  var lastCol = sheet.getLastColumn();
+  if (lastRow < 2 || lastCol === 0) return { success: false, error: 'No orders' };
+  var headers = sheet.getRange(1, 1, 1, lastCol).getValues()[0].map(function (h) {
+    return String(h).trim().toLowerCase().replace(/ /g, '_');
+  });
+  var tokCol = headers.indexOf('tracking_token');
+  var slotCol = headers.indexOf('delivery_slot');
+  var emailCol = headers.indexOf('email');
+  var nameCol = headers.indexOf('name');
+  if (tokCol < 0) throw new Error('tracking_token column not found');
+  if (slotCol < 0) throw new Error('delivery_slot column not found');
+  var tokens = sheet.getRange(2, tokCol + 1, lastRow - 1, 1).getValues();
+  for (var i = 0; i < tokens.length; i++) {
+    if (String(tokens[i][0]) === String(token)) {
+      var rowIndex = i + 2;
+      var oldSlot = normalizeSlotString(sheet.getRange(rowIndex, slotCol + 1).getValue());
+      if (!/^\d{1,2}:\d{2}$/.test(oldSlot)) {
+        return { success: false, error: 'Order has no valid delivery time' };
+      }
+      var newTotal = slotToMinutes(oldSlot) + mins;
+      var maxMinutes = 23 * 60 + 59; // clamp to 23:59
+      if (newTotal > maxMinutes) newTotal = maxMinutes;
+      var newSlot = minutesToSlot(newTotal);
+      // Write the new slot as TEXT so Sheets can't coerce '14:00' into a time
+      // value (TZ-corruption + capacity-bucket breakage). Format FIRST, then set.
+      var slotCell = sheet.getRange(rowIndex, slotCol + 1);
+      slotCell.setNumberFormat('@');
+      slotCell.setValue(newSlot);
+      var orderInfo = {
+        email: emailCol >= 0 ? String(sheet.getRange(rowIndex, emailCol + 1).getValue() || '') : '',
+        name: nameCol >= 0 ? String(sheet.getRange(rowIndex, nameCol + 1).getValue() || '') : '',
+        trackingToken: String(token),
+      };
+      // Skip the email if the clamp to 23:59 left the slot unchanged (a no-op
+      // re-delay of an already end-of-day order) — a "was 11:59 PM, new 11:59 PM"
+      // email would just confuse the customer.
+      if (newSlot !== oldSlot) sendDelayEmail(orderInfo, oldSlot, newSlot);
+      return {
+        success: true,
+        oldSlot: oldSlot,
+        newSlot: newSlot,
+        oldLabel: slotLabel12h(oldSlot),
+        newLabel: slotLabel12h(newSlot),
+      };
+    }
+  }
+  return { success: false, error: 'Order not found' };
+}
+
 // Keep the Pipeline tab roughly in sync with order status changes.
 function updatePipelineForOrder(orderId, stage, status) {
   try {
@@ -1211,6 +1338,67 @@ function crmReadRows(tabName) {
     items.push(item);
   }
   return items;
+}
+
+// ── CRM helper: upsert a customer into the Customers ledger ──
+// data = {phone, name, email, address, location}. Matches on phone with all
+// non-digits stripped. NON-FATAL: any failure here must never throw — a
+// Customers-logging error must not break an order.
+function upsertCustomer(data) {
+  try {
+    var phoneKey = String(data.phone || '').replace(/[^0-9]/g, '');
+    if (!phoneKey) return; // no usable phone — nothing to log
+
+    var sheet = crmGetSheet('Customers'); // auto-creates the tab from CRM_TABS
+    var rows = crmReadRows('Customers');
+    var now = new Date().toISOString();
+
+    var match = null;
+    for (var i = 0; i < rows.length; i++) {
+      var rowKey = String(rows[i].phone || '').replace(/[^0-9]/g, '');
+      if (rowKey && rowKey === phoneKey) {
+        match = rows[i];
+        break;
+      }
+    }
+
+    if (match) {
+      // Resolve header -> column index (mirror crmAppendRow's lookup).
+      var lastCol = sheet.getLastColumn();
+      var headers = sheet.getRange(1, 1, 1, lastCol).getValues()[0].map(function(h) {
+        return String(h).trim().toLowerCase().replace(/ /g, '_');
+      });
+      // Fall back to existing values so we never wipe data with an empty incoming field.
+      var updates = {
+        name: data.name || match.name,
+        email: data.email || match.email,
+        address: data.address || match.address,
+        location: data.location || match.location,
+        last_order: now,
+        order_count: (Number(match.order_count) || 0) + 1
+      };
+      for (var key in updates) {
+        var ci = headers.indexOf(key);
+        if (ci >= 0) {
+          sheet.getRange(match._rowIndex, ci + 1).setValue(updates[key]);
+        }
+      }
+    } else {
+      // New customer — store the RAW phone so it stays human-readable.
+      crmAppendRow('Customers', {
+        phone: data.phone || '',
+        name: data.name || '',
+        email: data.email || '',
+        address: data.address || '',
+        location: data.location || '',
+        first_seen: now,
+        last_order: now,
+        order_count: 1
+      });
+    }
+  } catch (e) {
+    Logger.log('upsertCustomer failed (non-fatal): ' + e);
+  }
 }
 
 // ── CRM Edit / Delete ──
@@ -1374,13 +1562,7 @@ function sendCateringConfirmationEmail(data) {
       '</div>' +
     '</div>';
 
-    MailApp.sendEmail({
-      to: data.email,
-      subject: subject,
-      htmlBody: htmlBody,
-      name: 'Bistro Cloud El Gouna',
-      replyTo: 'bistrocloud3@gmail.com'
-    });
+    sendCustomerEmail(data.email, subject, htmlBody, NOTIFICATION_EMAIL);
 
     Logger.log('Confirmation email sent to: ' + data.email);
   } catch (error) {

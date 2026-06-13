@@ -36,6 +36,7 @@ export async function POST(request: Request): Promise<Response> {
       name: order.name, phone: order.phone, email: order.email, address: order.address,
       orderTotal: order.orderTotal, orderSummary: order.orderSummary, itemCount: order.itemCount,
       deliverySlot: order.deliverySlot, expectedStatus: order.expectedStatus, note: order.note,
+      location: order.location,
       paymentMethod: order.paymentMethod,
       instapayDetails: order.paymentMethod === "instapay" ? (process.env.INSTAPAY_DETAILS || "") : undefined,
     });
@@ -57,6 +58,7 @@ export async function POST(request: Request): Promise<Response> {
         orderSummary: order.orderSummary, orderTotal: order.orderTotal, itemCount: order.itemCount,
         deliverySlot: order.deliverySlot, paymentMethod: order.paymentMethod,
         trackingToken: result.trackingToken, status: result.status, note: order.note,
+        location: order.location,
       });
       await sendMessage(process.env.TELEGRAM_OWNER_CHAT_ID, text, keyboardForStatus(result.status, result.trackingToken));
     } catch (err) {
@@ -79,6 +81,7 @@ export async function POST(request: Request): Promise<Response> {
         paymentMethod: order.paymentMethod,
         orderTotal: order.orderTotal,
         trackingToken: result.trackingToken,
+        location: order.location,
       });
       if (!r.ok) {
         console.error("[order] Loyverse push failed (non-fatal):", r.error);

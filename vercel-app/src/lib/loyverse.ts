@@ -46,6 +46,7 @@ export interface LoyverseOrder {
   paymentMethod: PaymentMethod;
   orderTotal: number;
   trackingToken: string;
+  location?: string;
 }
 
 export type VariantMap = Record<string, string>; // normalizedName -> variant_id
@@ -185,7 +186,8 @@ export function buildReceiptBody(order: LoyverseOrder, variantMap: VariantMap): 
   const note =
     `Web order — ${order.name}, ${order.phone}\n` +
     `${order.address}\n` +
-    `Delivery: ${order.deliverySlot} | Track: ${order.trackingToken}`;
+    `Delivery: ${order.deliverySlot} | Track: ${order.trackingToken}` +
+    (order.location ? `\nLocation: ${order.location}` : "");
 
   return {
     store_id: STORE_ID,

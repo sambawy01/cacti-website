@@ -10,10 +10,12 @@ vi.mock("@/lib/appsScript", () => ({
       phone: "+201001234567", address: "12 West Golf", note: "Instapay (bank transfer)", paymentMethod: "instapay",
     },
   })),
+  delayOrder: vi.fn(async () => ({ success: true, oldLabel: "2:30 PM", newLabel: "3:00 PM" })),
 }));
 vi.mock("@/lib/telegram", () => ({
   answerCallbackQuery: vi.fn(async () => ({ ok: true, status: 200 })),
   editMessageText: vi.fn(async () => ({ ok: true, status: 200 })),
+  editMessageReplyMarkup: vi.fn(async () => ({ ok: true, status: 200 })),
   sendMessage: vi.fn(async () => ({ ok: true, status: 200 })),
 }));
 vi.mock("@/lib/loyverse", () => ({
@@ -24,8 +26,8 @@ vi.mock("@/lib/loyverse", () => ({
 }));
 
 import { POST } from "./route";
-import { setOrderStatusByToken, getOrderStatus } from "@/lib/appsScript";
-import { answerCallbackQuery, editMessageText, sendMessage } from "@/lib/telegram";
+import { setOrderStatusByToken, getOrderStatus, delayOrder } from "@/lib/appsScript";
+import { answerCallbackQuery, editMessageText, editMessageReplyMarkup, sendMessage } from "@/lib/telegram";
 import { pushReceipt } from "@/lib/loyverse";
 
 const SECRET = "hook-secret";
@@ -144,5 +146,84 @@ describe("POST /api/telegram/webhook", () => {
     const res = await POST(req(foreignUpdate));
     expect(res.status).toBe(200);
     expect(setOrderStatusByToken).not.toHaveBeenCalled();
+  });
+
+  // ── "Running late" / delay flow ──
+
+  it("a 'delay' tap shows the +15/+30/+60 sub-keyboard without changing state", async () => {
+    const res = await POST(req(update("delay:tok-d")));
+    expect(res.status).toBe(200);
+    expect(editMessageReplyMarkup).toHaveBeenCalledOnce();
+    const kb = (editMessageReplyMarkup as any).mock.calls[0][2];
+    const flat = kb.inline_keyboard.flat();
+    expect(flat.some((b: any) => b.callback_data === "delay15:tok-d")).toBe(true);
+    expect(flat.some((b: any) => b.callback_data === "delay30:tok-d")).toBe(true);
+    expect(flat.some((b: any) => b.callback_data === "delay60:tok-d")).toBe(true);
+    expect(flat.some((b: any) => b.callback_data === "delayback:tok-d")).toBe(true);
+    // No state change and no slot move.
+    expect(setOrderStatusByToken).not.toHaveBeenCalled();
+    expect(delayOrder).not.toHaveBeenCalled();
+    expect(answerCallbackQuery).toHaveBeenCalled();
+  });
+
+  it("a 'delay30' tap calls delayOrder(token, 30), appends the new ETA, and restores the status keyboard", async () => {
+    const res = await POST(req(update("delay30:tok-d")));
+    expect(res.status).toBe(200);
+    expect(delayOrder).toHaveBeenCalledWith("tok-d", 30);
+    expect(setOrderStatusByToken).not.toHaveBeenCalled();
+    // Message text edited with the new-ETA line.
+    expect(editMessageText).toHaveBeenCalledOnce();
+    const text = (editMessageText as any).mock.calls[0][2];
+    expect(text).toContain("new ETA 3:00 PM");
+    // Restored to the order's current-status keyboard (confirmed → has delay button).
+    const kb = (editMessageText as any).mock.calls[0][3];
+    expect(kb.inline_keyboard.flat().some((b: any) => b.callback_data === "preparing:tok-d")).toBe(true);
+    expect(answerCallbackQuery).toHaveBeenCalledWith("cb1", "ETA +30 min");
+  });
+
+  it("a second delay replaces the prior ETA line instead of stacking duplicates", async () => {
+    const already = {
+      update_id: 1,
+      callback_query: {
+        id: "cb1",
+        data: "delay30:tok-d",
+        message: { message_id: 55, chat: { id: 999 }, text: "NEW ORDER\n\n⏰ Delayed → new ETA 2:45 PM" },
+      },
+    };
+    const res = await POST(req(already));
+    expect(res.status).toBe(200);
+    const text = (editMessageText as any).mock.calls[0][2] as string;
+    // Exactly one "⏰ Delayed" line, carrying the latest ETA.
+    expect(text.match(/⏰ Delayed/g)).toHaveLength(1);
+    expect(text).toContain("new ETA 3:00 PM");
+    expect(text).not.toContain("2:45 PM");
+  });
+
+  it("a delayOrder failure still answers 200 and does not throw or edit the message", async () => {
+    (delayOrder as any).mockResolvedValueOnce({ success: false, error: "Order not found" });
+    const res = await POST(req(update("delay60:tok-x")));
+    expect(res.status).toBe(200);
+    expect(delayOrder).toHaveBeenCalledWith("tok-x", 60);
+    expect(editMessageText).not.toHaveBeenCalled();
+    expect(answerCallbackQuery).toHaveBeenCalledWith("cb1", "Couldn't update");
+  });
+
+  it("a thrown delayOrder never breaks the 200", async () => {
+    (delayOrder as any).mockRejectedValueOnce(new Error("apps script down"));
+    const res = await POST(req(update("delay15:tok-y")));
+    expect(res.status).toBe(200);
+    expect(answerCallbackQuery).toHaveBeenCalledWith("cb1", "Couldn't update");
+  });
+
+  it("a 'delayback' tap restores the status keyboard without changing state", async () => {
+    const res = await POST(req(update("delayback:tok-d")));
+    expect(res.status).toBe(200);
+    expect(getOrderStatus).toHaveBeenCalledWith("tok-d");
+    expect(editMessageReplyMarkup).toHaveBeenCalledOnce();
+    const kb = (editMessageReplyMarkup as any).mock.calls[0][2];
+    expect(kb.inline_keyboard.flat().some((b: any) => b.callback_data === "preparing:tok-d")).toBe(true);
+    expect(delayOrder).not.toHaveBeenCalled();
+    expect(setOrderStatusByToken).not.toHaveBeenCalled();
+    expect(answerCallbackQuery).toHaveBeenCalled();
   });
 });

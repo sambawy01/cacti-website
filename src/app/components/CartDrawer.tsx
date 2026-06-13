@@ -30,10 +30,11 @@ export function CartDrawer() {
   const [paymentMethod, setPaymentMethod] = React.useState('cod');
   const [orderNotes, setOrderNotes] = React.useState('')
   const [address, setAddress] = React.useState(() => localStorage.getItem('bc_address') || '');
+  const [location, setLocation] = React.useState(() => localStorage.getItem('bc_location') || '');
   const [customerName, setCustomerName] = React.useState(() => localStorage.getItem('bc_name') || '');
   const [customerPhone, setCustomerPhone] = React.useState(() => localStorage.getItem('bc_phone') || '');
   const [customerEmail, setCustomerEmail] = React.useState(() => localStorage.getItem('bc_email') || '');
-  const [isReturning, setIsReturning] = React.useState(false);
+  const [prefilled, setPrefilled] = React.useState(false);
 
   const [availability, setAvailability] = React.useState<Availability | null>(null);
   const [availLoading, setAvailLoading] = React.useState(false);
@@ -58,7 +59,7 @@ export function CartDrawer() {
     if (!isCartOpen) return;
     setOrderResult(null);
     setCheckoutError(null);
-    setIsReturning(!!(localStorage.getItem('bc_name') && localStorage.getItem('bc_phone')));
+    setPrefilled(!!(localStorage.getItem('bc_name') && localStorage.getItem('bc_phone')));
     let cancelled = false;
     setAvailLoading(true);
     getAvailability()
@@ -80,7 +81,7 @@ export function CartDrawer() {
     try {
       const email = customerEmail.trim();
       const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-      if (!customerName.trim() || !customerPhone.trim()) {
+      if (customerName.trim().length < 2 || !customerPhone.trim()) {
         alert('Please enter your name and phone number.');
         return;
       }
@@ -96,7 +97,7 @@ export function CartDrawer() {
       localStorage.setItem('bc_phone', customerPhone.trim());
       localStorage.setItem('bc_email', email);
       localStorage.setItem('bc_address', address.trim());
-      setIsReturning(true);
+      localStorage.setItem('bc_location', location.trim());
 
       // Resolve the chosen slot (ASAP → earliest open) and its expected state.
       const slotTime = selectedSlot === 'asap' ? availability?.asap : selectedSlot;
@@ -113,6 +114,7 @@ export function CartDrawer() {
         phone: customerPhone.trim(),
         email,
         address: address.trim(),
+        location: location.trim(),
         note: orderNotes,
         deliverySlot: slotTime,
         expectedStatus,
@@ -261,44 +263,35 @@ export function CartDrawer() {
 
             {items.length > 0 && (
               <div className="p-6 border-t bg-[#F9F5F0] overflow-y-auto max-h-[60vh]">
-                {/* Customer Info — show welcome only for returning customers, form if not */}
-                {isReturning ? (
-                  <div className="mb-6 p-4 bg-white rounded-xl border border-gray-100">
-                    <p className="text-gray-800 text-sm">
-                      Welcome back, <span className="font-bold text-[#D94E28]">{customerName.trim()}</span>!
+                {/* Friendly note for returning customers — never hides any field */}
+                {prefilled && (
+                  <div className="mb-3 p-3 bg-white rounded-lg border border-gray-100">
+                    <p className="text-xs text-gray-600">
+                      👋 Welcome back — we've filled in your saved details. Edit anything that changed.
                     </p>
-                    <button
-                      onClick={() => {
-                        setIsReturning(false);
-                        setCustomerName(''); setCustomerPhone(''); setCustomerEmail(''); setAddress('');
-                        ['bc_name', 'bc_phone', 'bc_email', 'bc_address'].forEach((k) => localStorage.removeItem(k));
-                      }}
-                      className="text-xs text-gray-400 hover:text-gray-600 mt-1"
-                    >
-                      Not you? Change details
-                    </button>
-                  </div>
-                ) : (
-                  <div className="mb-6">
-                    <h3 className="font-bold text-gray-800 mb-3 text-sm">Your Details</h3>
-                    <div className="space-y-2">
-                      <input
-                        type="text"
-                        value={customerName}
-                        onChange={(e) => setCustomerName(e.target.value)}
-                        placeholder="Your Name"
-                        className="w-full p-3 rounded-lg border border-gray-200 bg-white text-sm focus:outline-none focus:ring-2 focus:ring-[#D94E28]/20 focus:border-[#D94E28]"
-                      />
-                      <input
-                        type="tel"
-                        value={customerPhone}
-                        onChange={(e) => setCustomerPhone(e.target.value)}
-                        placeholder="Phone Number (e.g. +20 122 128 8804)"
-                        className="w-full p-3 rounded-lg border border-gray-200 bg-white text-sm focus:outline-none focus:ring-2 focus:ring-[#D94E28]/20 focus:border-[#D94E28]"
-                      />
-                    </div>
                   </div>
                 )}
+
+                {/* Customer Info — always show all fields, pre-filled from state */}
+                <div className="mb-6">
+                  <h3 className="font-bold text-gray-800 mb-3 text-sm">Your Details</h3>
+                  <div className="space-y-2">
+                    <input
+                      type="text"
+                      value={customerName}
+                      onChange={(e) => setCustomerName(e.target.value)}
+                      placeholder="Your Name"
+                      className="w-full p-3 rounded-lg border border-gray-200 bg-white text-sm focus:outline-none focus:ring-2 focus:ring-[#D94E28]/20 focus:border-[#D94E28]"
+                    />
+                    <input
+                      type="tel"
+                      value={customerPhone}
+                      onChange={(e) => setCustomerPhone(e.target.value)}
+                      placeholder="Phone Number (e.g. +20 122 128 8804)"
+                      className="w-full p-3 rounded-lg border border-gray-200 bg-white text-sm focus:outline-none focus:ring-2 focus:ring-[#D94E28]/20 focus:border-[#D94E28]"
+                    />
+                  </div>
+                </div>
 
                 <div className="mb-6">
                   <h3 className="font-bold text-gray-800 mb-3 text-sm">Email <span className="text-[#D94E28]">*</span> <span className="font-normal text-gray-500">(for order & delivery updates)</span></h3>
@@ -323,6 +316,17 @@ export function CartDrawer() {
                     required
                     aria-required="true"
                     className="w-full p-3 rounded-lg border border-gray-200 bg-white text-sm focus:outline-none focus:ring-2 focus:ring-[#D94E28]/20 focus:border-[#D94E28] resize-none"
+                  />
+                </div>
+
+                <div className="mb-6">
+                  <h3 className="font-bold text-gray-800 mb-3 text-sm">📍 Location / Google Maps link <span className="font-normal text-gray-500">(optional)</span></h3>
+                  <input
+                    type="text"
+                    value={location}
+                    onChange={(e) => setLocation(e.target.value)}
+                    placeholder="Paste a Google Maps link or describe your spot"
+                    className="w-full p-3 rounded-lg border border-gray-200 bg-white text-sm focus:outline-none focus:ring-2 focus:ring-[#D94E28]/20 focus:border-[#D94E28]"
                   />
                 </div>
 

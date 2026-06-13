@@ -77,6 +77,7 @@ export interface OnSiteOrderInput {
   phone: string;
   email: string;
   address: string;
+  location?: string;
   note?: string;
   deliverySlot: string; // 'HH:mm'
   expectedStatus: "open" | "busy";
