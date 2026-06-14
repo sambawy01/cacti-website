@@ -69,7 +69,7 @@ export async function runOrderSideEffects(order: ValidatedOrder, result: PlaceOr
       const text = buildOrderMessage({
         name: order.name, phone: order.phone, email: order.email, address: order.address,
         orderSummary: order.orderSummary, orderTotal: order.orderTotal, itemCount: order.itemCount,
-        deliverySlot: order.deliverySlot, paymentMethod: order.paymentMethod,
+        deliverySlot: order.deliverySlot, deliveryDate: result.deliveryDate, paymentMethod: order.paymentMethod,
         trackingToken: result.trackingToken, status: result.status, note: order.note,
         location: order.location,
       });

@@ -111,6 +111,45 @@ describe("POST /api/telegram/webhook", () => {
     }));
   });
 
+  it("a 'preparing' advance refreshes the 🎯 target line on the ticket", async () => {
+    // The tap moves the order to preparing; the edited ticket should carry the
+    // new stage's target and drop any prior stage's 🎯 line.
+    (setOrderStatusByToken as any).mockResolvedValueOnce({ success: true, status: "preparing", previousStatus: "confirmed" });
+    await POST(req(update("preparing:tok-p")));
+    const editText = (editMessageText as any).mock.calls[0][2] as string;
+    expect(editText).toContain("🎯 Out for delivery by");
+    // the old confirmed-stage target line must not linger
+    expect(editText).not.toContain("Start preparing by");
+  });
+
+  it("a status advance renders a SLOT-ANCHORED 🎯 (not entered-relative) and strips the stale one", async () => {
+    // Advancing to 'preparing' for an order whose slot is hours away must anchor
+    // the refreshed 🎯 to the slot (slot − DRIVE_MIN), not to now + stage limit.
+    // Slot 20:00 Cairo (summer EEST) → preparing target = 19:50 Cairo = 7:50 PM.
+    (setOrderStatusByToken as any).mockResolvedValueOnce({ success: true, status: "preparing", previousStatus: "confirmed" });
+    // mockResolvedValueOnce so ONLY the synchronous status-advance slot fetch
+    // consumes it (we don't flushAfter, so the deferred preparing email's fetch
+    // is never reached).
+    (getOrderStatus as any).mockResolvedValueOnce({
+      success: true,
+      order: { name: "Sara Ali", status: "preparing", deliveryDate: "2026-06-14", deliverySlot: "20:00" },
+    });
+    const withStaleTarget = {
+      update_id: 1,
+      callback_query: {
+        id: "cb1",
+        data: "preparing:tok-adv",
+        message: { message_id: 55, chat: { id: 999 }, text: "NEW ORDER\n\n🎯 Start preparing by 1:00 PM" },
+      },
+    };
+    const res = await POST(req(withStaleTarget));
+    expect(res.status).toBe(200);
+    const text = (editMessageText as any).mock.calls[0][2] as string;
+    expect(text).toContain("🎯 Out for delivery by 7:50 PM"); // slot-anchored target
+    expect(text).not.toContain("Start preparing by 1:00 PM");  // stale target stripped
+    expect((text.match(/🎯/g) || []).length).toBe(1);          // exactly one target line
+  });
+
   it("does NOT push to Loyverse for non-approve transitions (e.g. preparing)", async () => {
     await POST(req(update("preparing:t")));
     expect(pushReceipt).not.toHaveBeenCalled();
@@ -133,7 +172,22 @@ describe("POST /api/telegram/webhook", () => {
   });
 
   it("a thrown getOrderStatus during the deferred push never breaks the 200", async () => {
-    (getOrderStatus as any).mockRejectedValueOnce(new Error("apps script down"));
+    // Three getOrderStatus calls happen on an approve: (1) the synchronous
+    // slot fetch that refreshes the 🎯 target, (2) the deferred confirmation
+    // email, (3) the deferred Loyverse push. Let the first two resolve so the
+    // throw lands specifically on the DEFERRED PUSH this test is about.
+    const okOrder = {
+      success: true,
+      order: {
+        name: "Sara Ali", status: "confirmed", deliveryDate: "2026-06-13", deliverySlot: "14:30",
+        orderSummary: "2x Grilled Chicken (400 EGP)", orderTotal: 400,
+        email: "sara@example.com", paymentMethod: "instapay",
+      },
+    };
+    (getOrderStatus as any)
+      .mockResolvedValueOnce(okOrder) // synchronous slot fetch
+      .mockResolvedValueOnce(okOrder) // deferred confirmation email
+      .mockRejectedValueOnce(new Error("apps script down")); // deferred Loyverse push
     const res = await POST(req(update("approve:tok-y")));
     expect(res.status).toBe(200);
     expect(setOrderStatusByToken).toHaveBeenCalled();
@@ -208,6 +262,27 @@ describe("POST /api/telegram/webhook", () => {
     const kb = (editMessageText as any).mock.calls[0][3];
     expect(kb.inline_keyboard.flat().some((b: any) => b.callback_data === "preparing:tok-d")).toBe(true);
     expect(answerCallbackQuery).toHaveBeenCalledWith("cb1", "ETA +30 min");
+  });
+
+  it("H2: a delay strips any stale 🎯 line and re-appends a fresh one (slot-anchored target moves)", async () => {
+    // The fetched order is 'confirmed' → its fresh target is "Start preparing by".
+    // A stale 'Deliver by' line (from a different stage) must be dropped, leaving
+    // exactly one 🎯 line.
+    const withStaleTarget = {
+      update_id: 1,
+      callback_query: {
+        id: "cb1",
+        data: "delay30:tok-d",
+        message: { message_id: 55, chat: { id: 999 }, text: "NEW ORDER\n\n🎯 Deliver by 1:00 PM" },
+      },
+    };
+    const res = await POST(req(withStaleTarget));
+    expect(res.status).toBe(200);
+    const text = (editMessageText as any).mock.calls[0][2] as string;
+    expect(text).not.toContain("Deliver by 1:00 PM"); // stale target stripped
+    expect(text).toContain("🎯 Start preparing by");    // fresh target re-appended
+    expect((text.match(/🎯/g) || []).length).toBe(1);   // exactly one target line
+    expect(text).toContain("new ETA 3:00 PM");
   });
 
   it("a second delay replaces the prior ETA line instead of stacking duplicates", async () => {
@@ -331,10 +406,15 @@ describe("POST /api/telegram/webhook — customer emails", () => {
   });
 
   it("does not send any email when the order has no email on file", async () => {
-    (getOrderStatus as any).mockResolvedValueOnce({
+    // The order is now fetched twice (synchronous status-advance slot fetch +
+    // deferred email fetch), so queue the no-email order for BOTH fetches. Two
+    // `Once` mocks (not a persistent one) so the override can't leak into the
+    // next test — vi.clearAllMocks() clears call history but not implementations.
+    const noEmailOrder = {
       success: true,
       order: { name: "X", status: "preparing", deliveryDate: "", deliverySlot: "14:30", orderSummary: "", orderTotal: 0 },
-    });
+    };
+    (getOrderStatus as any).mockResolvedValueOnce(noEmailOrder).mockResolvedValueOnce(noEmailOrder);
     await POST(req(update("preparing:tok-noemail")));
     await flushAfter();
     expect(sendEmail).not.toHaveBeenCalled();
