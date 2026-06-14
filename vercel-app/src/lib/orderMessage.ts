@@ -1,5 +1,6 @@
 import type { InlineKeyboard } from "./telegram";
 import type { OrderStatus } from "./appsScript";
+import { isActiveStatus, stageActionLabel, targetLine } from "./sla";
 
 export interface OrderForMessage {
   name: string;
@@ -53,6 +54,9 @@ export function buildOrderMessage(o: OrderForMessage): string {
     "",
     `Total: ${o.orderTotal} EGP  ·  ${o.itemCount} item(s)`,
   );
+  if (isActiveStatus(o.status)) {
+    lines.push("", targetLine(o.status, new Date()));
+  }
   return lines.join("\n");
 }
 
@@ -116,4 +120,27 @@ export function delayKeyboard(token: string): InlineKeyboard {
     [btn("+15 min", "delay15", token), btn("+30 min", "delay30", token), btn("+60 min", "delay60", token)],
     [btn("⬅ Back", "delayback", token)],
   ] };
+}
+
+export interface SlaAlertInput {
+  id: number | string;
+  name: string;
+  phone: string;
+  status: "pending_approval" | "confirmed" | "preparing" | "out_for_delivery";
+  overdueMin: number;
+  limitMin: number;
+}
+
+/** A self-contained, actionable overdue alert for the sales group. Pair it with
+ * keyboardForStatus(status, token) so a tap advances the order like the ticket. */
+export function buildSlaAlertMessage(o: SlaAlertInput): string {
+  // Collapse any newline/control chars so a crafted customer name/phone can't
+  // distort the alert layout (e.g. inject fake header lines).
+  const oneLine = (s: string): string => s.replace(/[\r\n\t]+/g, " ").trim();
+  return [
+    `⏰ OVERDUE — Order #${o.id}`,
+    `👤 ${oneLine(o.name)}  ·  ${oneLine(o.phone)}`,
+    `"${stageActionLabel(o.status)}" is ${o.overdueMin} min late (target ${o.limitMin} min)`,
+    "👇 tap to act",
+  ].join("\n");
 }

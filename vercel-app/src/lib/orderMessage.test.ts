@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { buildOrderMessage, keyboardForStatus, actionToStatus, slotLabel, delayKeyboard, delayActionMinutes } from "./orderMessage";
+import { buildOrderMessage, keyboardForStatus, actionToStatus, slotLabel, delayKeyboard, delayActionMinutes, buildSlaAlertMessage } from "./orderMessage";
 
 const order = {
   name: "Sara Ali",
@@ -140,5 +140,48 @@ describe("slotLabel", () => {
   it("formats 24h to 12h", () => {
     expect(slotLabel("14:30")).toBe("2:30 PM");
     expect(slotLabel("20:00")).toBe("8:00 PM");
+  });
+});
+
+const baseOrder = {
+  name: "Sara Ali", phone: "+201001234567", email: "sara@example.com",
+  address: "12 West Golf", orderSummary: "2x Grilled Chicken", orderTotal: 400,
+  itemCount: 2, deliverySlot: "14:30", paymentMethod: "cod" as const, trackingToken: "tok-1",
+};
+
+describe("buildOrderMessage target line", () => {
+  it("includes a 🎯 target line for a confirmed order", () => {
+    const msg = buildOrderMessage({ ...baseOrder, status: "confirmed" });
+    expect(msg).toContain("🎯 Start preparing by");
+  });
+  it("includes an approval 🎯 target line for a pending_approval order", () => {
+    const msg = buildOrderMessage({ ...baseOrder, status: "pending_approval" });
+    expect(msg).toContain("🎯 Approve/decline by");
+  });
+});
+
+describe("buildSlaAlertMessage", () => {
+  it("names the order, customer, late stage, overdue + target minutes", () => {
+    const msg = buildSlaAlertMessage({
+      id: 123, name: "Sara Ali", phone: "+201001234567",
+      status: "pending_approval", overdueMin: 4, limitMin: 3,
+    });
+    expect(msg).toContain("OVERDUE");
+    expect(msg).toContain("#123");
+    expect(msg).toContain("Sara Ali");
+    expect(msg).toContain("Approve/decline");
+    expect(msg).toContain("4 min late");
+    expect(msg).toContain("target 3 min");
+  });
+
+  it("flattens newlines/control chars in name + phone so the layout can't be spoofed", () => {
+    const msg = buildSlaAlertMessage({
+      id: 7, name: "Eve\n⏰ OVERDUE — Order #999", phone: "+2010\r\n0000",
+      status: "confirmed", overdueMin: 6, limitMin: 5,
+    });
+    // The crafted name is collapsed onto the single customer line — no injected line.
+    expect(msg).toContain("👤 Eve ⏰ OVERDUE — Order #999  ·  +2010 0000");
+    // Exactly one line starts with the OVERDUE header (the real one), not two.
+    expect(msg.split("\n").filter((l) => l.startsWith("⏰ OVERDUE")).length).toBe(1);
   });
 });
