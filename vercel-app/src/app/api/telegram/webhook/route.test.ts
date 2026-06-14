@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach } from "vitest";
+import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 
 // The approve-path Loyverse push is deferred via after(); capture + run on demand.
 const deferred: Array<() => unknown> = [];
@@ -78,6 +78,11 @@ beforeEach(() => {
   (sendEmail as any).mockResolvedValue({ ok: true });
 });
 
+// Safety net: any test that pins the clock with fake timers must not leak it.
+afterEach(() => {
+  vi.useRealTimers();
+});
+
 describe("POST /api/telegram/webhook", () => {
   it("rejects a bad secret with 401 and changes nothing", async () => {
     const res = await POST(req(update("approve:tok-1"), "wrong-secret"));
@@ -123,6 +128,12 @@ describe("POST /api/telegram/webhook", () => {
   });
 
   it("a status advance renders a SLOT-ANCHORED 🎯 (not entered-relative) and strips the stale one", async () => {
+    // Pin the clock to the afternoon so the slot-anchored target (slot−10 = 19:50)
+    // always beats the floor clamp (now + stage limit). Without this the test is
+    // flaky in the evening (Cairo): after ~19:35 local, now+15 > 19:50 and the
+    // floor clamp wins, so the rendered time stops being 7:50 PM.
+    vi.useFakeTimers({ toFake: ["Date"] });
+    vi.setSystemTime(new Date("2026-06-14T14:00:00+03:00"));
     // Advancing to 'preparing' for an order whose slot is hours away must anchor
     // the refreshed 🎯 to the slot (slot − DRIVE_MIN), not to now + stage limit.
     // Slot 20:00 Cairo (summer EEST) → preparing target = 19:50 Cairo = 7:50 PM.
