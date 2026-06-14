@@ -149,6 +149,10 @@ function doGet(e) {
         return jsonpResponse(callback, orderSetStatus(parseInt(params.rowIndex), params.status, params.orderId));
       case 'setOrderStatusByToken':
         return jsonpResponse(callback, orderSetStatusByToken(params.token, params.status));
+      case 'slaListActiveOrders':
+        return jsonpResponse(callback, slaListActiveOrders());
+      case 'markSlaAlerted':
+        return jsonpResponse(callback, markSlaAlerted(params.token));
       case 'delayOrder':
         return jsonpResponse(callback, delayOrder(params.token, parseInt(params.minutes)));
       case 'orderFinalize':
@@ -471,7 +475,7 @@ function adminTogglePantryVisibility(rowIndex, newStatus) {
  */
 var CRM_TABS = {
   Catering: ['id', 'timestamp', 'name', 'company', 'email', 'phone', 'event_type', 'guest_count', 'event_date', 'location', 'menu_preferences', 'status', 'notes'],
-  Orders:   ['id', 'timestamp', 'name', 'phone', 'email', 'delivery_area', 'address', 'order_total', 'order_summary', 'item_count', 'delivery_date', 'delivery_slot', 'tracking_token', 'status', 'notes'],
+  Orders:   ['id', 'timestamp', 'name', 'phone', 'email', 'delivery_area', 'address', 'order_total', 'order_summary', 'item_count', 'delivery_date', 'delivery_slot', 'tracking_token', 'status', 'notes', 'status_changed_at', 'sla_alerted_at'],
   Contacts: ['id', 'timestamp', 'name', 'email', 'phone', 'message', 'status'],
   Pipeline: ['id', 'timestamp', 'type', 'deal_name', 'contact_name', 'company', 'email', 'stage', 'value', 'event_date', 'guest_count', 'location', 'status', 'notes'],
   Customers: ['phone', 'name', 'email', 'address', 'location', 'first_seen', 'last_order', 'order_count'],
@@ -573,7 +577,7 @@ function migrateOrdersTab() {
   // appended beyond that range revert to default format. The per-row text
   // hardening in orderPlace (setNumberFormat('@') + setValue on the appended
   // row) is the DURABLE guarantee — this loop just fixes the existing range.
-  var textCols = ['delivery_date', 'delivery_slot', 'tracking_token'];
+  var textCols = ['delivery_date', 'delivery_slot', 'tracking_token', 'status_changed_at', 'sla_alerted_at'];
   for (var t = 0; t < textCols.length; t++) {
     var idx = headers.indexOf(textCols[t]);
     if (idx >= 0) {
@@ -733,6 +737,8 @@ function orderPlace(params) {
       tracking_token: token,
       status: outcome,
       notes: (paymentLabel ? paymentLabel + (params.note ? ' — ' : '') : '') + (params.note || ''),
+      status_changed_at: ts,
+      sla_alerted_at: '',
     });
 
     // Force the slot/date/token cells of the row we just appended to plain text.
@@ -744,7 +750,7 @@ function orderPlace(params) {
       var oHeaders = ordersSheet.getRange(1, 1, 1, ordersSheet.getLastColumn()).getValues()[0].map(function (h) {
         return String(h).trim().toLowerCase().replace(/ /g, '_');
       });
-      var textCells = { delivery_slot: slotParam, delivery_date: avail.date, tracking_token: token };
+      var textCells = { delivery_slot: slotParam, delivery_date: avail.date, tracking_token: token, status_changed_at: ts };
       for (var tcKey in textCells) {
         var tci = oHeaders.indexOf(tcKey);
         if (tci >= 0) {
@@ -1119,6 +1125,13 @@ function orderSetStatus(rowIndex, newStatus, orderId) {
 
   sheet.getRange(rowIndex, statusCol + 1).setValue(newStatus);
 
+  var scaCol = headers.indexOf('status_changed_at');
+  if (scaCol >= 0) {
+    var scaCell = sheet.getRange(rowIndex, scaCol + 1);
+    scaCell.setNumberFormat('@');
+    scaCell.setValue(new Date().toISOString());
+  }
+
   var orderInfo = {
     name: String(row.name || ''),
     phone: String(row.phone || ''),
@@ -1187,6 +1200,60 @@ function orderSetStatusByToken(token, newStatus) {
       var rowIndex = i + 2;
       var orderId = idCol >= 0 ? sheet.getRange(rowIndex, idCol + 1).getValue() : undefined;
       return orderSetStatus(rowIndex, newStatus, orderId);
+    }
+  }
+  return { success: false, error: 'Order not found' };
+}
+
+/**
+ * Today's (Cairo) active orders for the SLA cron. Active = pending_approval,
+ * confirmed, preparing, out_for_delivery. status_changed_at falls back to the
+ * creation timestamp for rows that predate the column.
+ */
+function slaListActiveOrders() {
+  var active = { pending_approval: 1, confirmed: 1, preparing: 1, out_for_delivery: 1 };
+  var today = cairoToday();
+  var rows = crmReadRows('Orders');
+  var out = [];
+  for (var i = 0; i < rows.length; i++) {
+    var r = rows[i];
+    if (!active[String(r.status)]) continue;
+    if (normalizeDateString(r.delivery_date) !== today) continue;
+    out.push({
+      id: r.id,
+      tracking_token: String(r.tracking_token || ''),
+      status: String(r.status),
+      status_changed_at: String(r.status_changed_at || r.timestamp || ''),
+      sla_alerted_at: String(r.sla_alerted_at || ''),
+      name: String(r.name || ''),
+      phone: String(r.phone || ''),
+      delivery_slot: normalizeSlotString(r.delivery_slot),
+      order_summary: String(r.order_summary || ''),
+    });
+  }
+  return { success: true, orders: out };
+}
+
+/** Record the time of the latest SLA breach alert for an order (by token). */
+function markSlaAlerted(token) {
+  if (!token) return { success: false, error: 'Missing token' };
+  var sheet = crmGetSheet('Orders');
+  var lastRow = sheet.getLastRow();
+  var lastCol = sheet.getLastColumn();
+  if (lastRow < 2 || lastCol === 0) return { success: false, error: 'No orders' };
+  var headers = sheet.getRange(1, 1, 1, lastCol).getValues()[0].map(function (h) {
+    return String(h).trim().toLowerCase().replace(/ /g, '_');
+  });
+  var tokCol = headers.indexOf('tracking_token');
+  var alertCol = headers.indexOf('sla_alerted_at');
+  if (tokCol < 0 || alertCol < 0) return { success: false, error: 'Columns missing — run migrateOrdersTab' };
+  var tokens = sheet.getRange(2, tokCol + 1, lastRow - 1, 1).getValues();
+  for (var i = 0; i < tokens.length; i++) {
+    if (String(tokens[i][0]) === String(token)) {
+      var cell = sheet.getRange(i + 2, alertCol + 1);
+      cell.setNumberFormat('@');
+      cell.setValue(new Date().toISOString());
+      return { success: true };
     }
   }
   return { success: false, error: 'Order not found' };
