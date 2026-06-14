@@ -4,6 +4,18 @@ vi.mock("next/server", () => ({ NextResponse: { json: (b: unknown, i?: { status?
 vi.mock("@/lib/appsScript", () => ({ slaListActiveOrders: vi.fn(), markSlaAlerted: vi.fn(async () => ({ success: true })) }));
 vi.mock("@/lib/telegram", () => ({ telegramConfigured: vi.fn(() => true), sendMessage: vi.fn(async () => ({ ok: true, status: 200 })) }));
 
+// Stateful owner-DM mocks. mockState is read-modify-written by the marker stubs
+// so the pending-reminder cooldown can be exercised across two GET() calls in a
+// single test. Default ownerChatId is null so the EXISTING group-alert tests see
+// no owner and keep their single-sendMessage assertions unchanged.
+const mockState = { ownerChatId: null as number | null, pendingRemindedAt: null as number | null };
+vi.mock("@/lib/assistant/state", () => ({
+  getOwnerChatId: vi.fn(async () => mockState.ownerChatId),
+  getPendingRemindedAt: vi.fn(async () => mockState.pendingRemindedAt),
+  markPendingReminded: vi.fn(async (at: number) => { mockState.pendingRemindedAt = at; }),
+  PENDING_REMINDER_COOLDOWN_MS: 60 * 60 * 1000,
+}));
+
 import { GET } from "./route";
 import { slaListActiveOrders, markSlaAlerted } from "@/lib/appsScript";
 import { sendMessage } from "@/lib/telegram";
@@ -22,6 +34,8 @@ beforeEach(() => {
   vi.setSystemTime(new Date("2026-06-14T14:00:00.000Z"));
   process.env.CRON_SECRET = SECRET;
   process.env.TELEGRAM_OWNER_CHAT_ID = "999";
+  mockState.ownerChatId = null;
+  mockState.pendingRemindedAt = null;
   (slaListActiveOrders as any).mockResolvedValue({ success: true, orders: [] });
   (markSlaAlerted as any).mockResolvedValue({ success: true });
   // clearAllMocks clears call data but NOT implementations/mockResolvedValue,
@@ -123,4 +137,47 @@ it("a FAILED markSlaAlerted does not silently succeed — it logs and is not cou
   expect(errSpy).toHaveBeenCalled();
   expect(await res.json()).toMatchObject({ ok: true, alerted: 0 });
   errSpy.mockRestore();
+});
+
+// ── 4b: owner-DM on breach + pending-approval reminder ──────────────────────
+
+it("when an owner is bound: DMs the owner on a breach AND the group alert still fires", async () => {
+  mockState.ownerChatId = 12345;
+  (slaListActiveOrders as any).mockResolvedValue({ success: true, orders: [
+    { id: 1, tracking_token: "t-breach", status: "confirmed", status_changed_at: "2026-06-14T13:50:00.000Z", sla_alerted_at: "", name: "A", phone: "p", delivery_date: "2026-06-14", delivery_slot: "16:00", order_summary: "x" },
+  ]});
+  const res = await GET(req(`Bearer ${SECRET}`));
+  expect(res.status).toBe(200);
+  const calls = (sendMessage as any).mock.calls as [string | number, string][];
+  // Group alert UNCHANGED: still sent to the group chat with the OVERDUE text.
+  const group = calls.find((c) => String(c[0]) === "999");
+  expect(group).toBeTruthy();
+  expect(group![1]).toContain("OVERDUE");
+  // ALSO an owner DM about the breach.
+  const ownerSla = calls.find((c) => String(c[0]) === "12345" && /SLA/.test(c[1]));
+  expect(ownerSla).toBeTruthy();
+  expect(ownerSla![1]).toContain("confirmed");
+  expect(markSlaAlerted).toHaveBeenCalledWith("t-breach");
+});
+
+it("DMs the owner ONE pending-approval reminder and dedups it on an immediate second run", async () => {
+  mockState.ownerChatId = 12345;
+  // One breaching confirmed order + two pending_approval orders awaiting the owner.
+  (slaListActiveOrders as any).mockResolvedValue({ success: true, orders: [
+    { id: 1, tracking_token: "t-breach", status: "confirmed", status_changed_at: "2026-06-14T13:50:00.000Z", sla_alerted_at: "", name: "A", phone: "p", delivery_date: "2026-06-14", delivery_slot: "16:00", order_summary: "x" },
+    { id: 2, tracking_token: "t-pa1", status: "pending_approval", status_changed_at: "2026-06-14T13:59:30.000Z", sla_alerted_at: "2026-06-14T13:59:40.000Z", name: "B", phone: "p", delivery_date: "2026-06-14", delivery_slot: "19:00", order_summary: "y" },
+    { id: 3, tracking_token: "t-pa2", status: "pending_approval", status_changed_at: "2026-06-14T13:59:30.000Z", sla_alerted_at: "2026-06-14T13:59:40.000Z", name: "C", phone: "p", delivery_date: "2026-06-14", delivery_slot: "19:30", order_summary: "z" },
+  ]});
+
+  await GET(req(`Bearer ${SECRET}`));
+  const firstRunCalls = (sendMessage as any).mock.calls as [string | number, string][];
+  const reminder = firstRunCalls.filter((c) => String(c[0]) === "12345" && /awaiting your approval/.test(c[1]));
+  expect(reminder).toHaveLength(1);
+  expect(reminder[0][1]).toContain("2"); // 2 orders awaiting approval
+
+  // Immediate second run (clock pinned): the reminder is deduped by the cooldown.
+  (sendMessage as any).mockClear();
+  await GET(req(`Bearer ${SECRET}`));
+  const secondRunCalls = (sendMessage as any).mock.calls as [string | number, string][];
+  expect(secondRunCalls.some((c) => /awaiting your approval/.test(c[1]))).toBe(false);
 });

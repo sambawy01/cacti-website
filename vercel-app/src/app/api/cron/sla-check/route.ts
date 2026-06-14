@@ -2,6 +2,9 @@ import { NextResponse } from "next/server";
 import { timingSafeEqual } from "node:crypto";
 import { slaListActiveOrders, markSlaAlerted, type SlaActiveOrder } from "@/lib/appsScript";
 import { sendMessage } from "@/lib/telegram";
+import {
+  getOwnerChatId, getPendingRemindedAt, markPendingReminded, PENDING_REMINDER_COOLDOWN_MS,
+} from "@/lib/assistant/state";
 import { buildSlaAlertMessage, keyboardForStatus } from "@/lib/orderMessage";
 import {
   isActiveStatus, shouldAlert, overdueMinutesDisplay, STAGE_LIMITS_MIN, withinOperatingHours,
@@ -49,7 +52,21 @@ export async function GET(request: Request): Promise<Response> {
   if (!list.success || !list.orders) return NextResponse.json({ ok: false, error: list.error || "no orders" });
 
   const chatId = process.env.TELEGRAM_OWNER_CHAT_ID;
+
+  // The bound owner's chat — for the proactive owner DMs added alongside the
+  // (unchanged) group alert. Best effort: getOwnerChatId fails CLOSED and may
+  // throw on a corrupt record, but a proactive DM is not a security boundary,
+  // so a throw here just means "skip the owner DMs this run" — never abort the
+  // group SLA path.
+  let ownerChatId: number | null = null;
+  try {
+    ownerChatId = await getOwnerChatId();
+  } catch (err) {
+    console.error("[sla-check] owner lookup failed; skipping owner DMs:", err);
+  }
+
   let alerted = 0;
+  let ownerDms = 0;
   for (const o of list.orders) {
     if (!isActiveStatus(o.status)) continue;
     const stageEnteredAt = parseDate(o.status_changed_at);
@@ -87,9 +104,48 @@ export async function GET(request: Request): Promise<Response> {
         continue;
       }
       alerted += 1;
+
+      // Proactive owner DM mirroring this breach. Independent of the group
+      // alert + dedup above (those are UNCHANGED): the order is already marked,
+      // so a failure here only loses one informational DM, never re-alerts.
+      if (ownerChatId !== null) {
+        try {
+          const dm = await sendMessage(
+            ownerChatId,
+            `🔴 SLA: order ${o.tracking_token} (${o.name}) stuck in ${status} — ${overdueMinutesDisplay(status, stageEnteredAt, now, slotInstant)} min overdue.`,
+          );
+          if (dm.ok) ownerDms += 1;
+        } catch (err) {
+          console.error("[sla-check] owner DM failed for", o.tracking_token, err);
+        }
+      }
     } catch (err) {
       console.error("[sla-check] alert failed for", o.tracking_token, err);
     }
   }
-  return NextResponse.json({ ok: true, checked: list.orders.length, alerted });
+
+  // Pending-approval reminder: a single owner DM when orders are sitting in
+  // pending_approval, throttled by a cooldown marker so it never repeats every
+  // minute. Independent of the per-order breach dedup above; best effort.
+  let pendingReminded = false;
+  const pendingCount = list.orders.filter((o) => o.status === "pending_approval").length;
+  if (ownerChatId !== null && pendingCount > 0) {
+    try {
+      const last = await getPendingRemindedAt();
+      if (last === null || now.getTime() - last >= PENDING_REMINDER_COOLDOWN_MS) {
+        const dm = await sendMessage(
+          ownerChatId,
+          `⏳ ${pendingCount} order${pendingCount === 1 ? "" : "s"} awaiting your approval.`,
+        );
+        if (dm.ok) {
+          await markPendingReminded(now.getTime());
+          pendingReminded = true;
+        }
+      }
+    } catch (err) {
+      console.error("[sla-check] pending-approval reminder failed:", err);
+    }
+  }
+
+  return NextResponse.json({ ok: true, checked: list.orders.length, alerted, ownerDms, pendingReminded });
 }
