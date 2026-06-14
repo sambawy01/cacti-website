@@ -10,6 +10,7 @@ const order = {
   orderTotal: 400,
   itemCount: 2,
   deliverySlot: "14:30",
+  deliveryDate: "2026-06-14",
   paymentMethod: "card_on_delivery" as const,
   trackingToken: "abc-123",
   status: "confirmed" as const,
@@ -146,7 +147,8 @@ describe("slotLabel", () => {
 const baseOrder = {
   name: "Sara Ali", phone: "+201001234567", email: "sara@example.com",
   address: "12 West Golf", orderSummary: "2x Grilled Chicken", orderTotal: 400,
-  itemCount: 2, deliverySlot: "14:30", paymentMethod: "cod" as const, trackingToken: "tok-1",
+  itemCount: 2, deliverySlot: "14:30", deliveryDate: "2026-06-14",
+  paymentMethod: "cod" as const, trackingToken: "tok-1",
 };
 
 describe("buildOrderMessage target line", () => {
@@ -158,16 +160,26 @@ describe("buildOrderMessage target line", () => {
     const msg = buildOrderMessage({ ...baseOrder, status: "pending_approval" });
     expect(msg).toContain("🎯 Approve/decline by");
   });
+  it("anchors the confirmed target to a future slot (slot − 25 min), not to 'now'", () => {
+    // A slot far in the future relative to any real test-run clock, so the
+    // floor clamp (entered + 5 min) can't win — proves slot-anchoring.
+    const msg = buildOrderMessage({ ...baseOrder, status: "confirmed", deliveryDate: "2099-06-14", deliverySlot: "19:00" });
+    // 19:00 Cairo (summer) − 25 min = 18:35 Cairo = 6:35 PM.
+    expect(msg).toContain("🎯 Start preparing by 6:35 PM");
+  });
 });
 
 describe("buildSlaAlertMessage", () => {
-  it("names the order, customer, late stage, overdue + target minutes", () => {
+  it("references the order (token tail + slot), customer, late stage, overdue + target minutes", () => {
     const msg = buildSlaAlertMessage({
-      id: 123, name: "Sara Ali", phone: "+201001234567",
-      status: "pending_approval", overdueMin: 4, limitMin: 3,
+      token: "track-abc123", name: "Sara Ali", phone: "+201001234567",
+      slot: "14:30", status: "pending_approval", overdueMin: 4, limitMin: 3,
     });
     expect(msg).toContain("OVERDUE");
-    expect(msg).toContain("#123");
+    // Friendly reference: the tracking-token tail, NOT a 13-digit Date.now() id.
+    expect(msg).toContain("c123");
+    expect(msg).not.toMatch(/#\d{13}/);
+    expect(msg).toContain("2:30 PM"); // the slot, for context
     expect(msg).toContain("Sara Ali");
     expect(msg).toContain("Approve/decline");
     expect(msg).toContain("4 min late");
@@ -176,12 +188,20 @@ describe("buildSlaAlertMessage", () => {
 
   it("flattens newlines/control chars in name + phone so the layout can't be spoofed", () => {
     const msg = buildSlaAlertMessage({
-      id: 7, name: "Eve\n⏰ OVERDUE — Order #999", phone: "+2010\r\n0000",
-      status: "confirmed", overdueMin: 6, limitMin: 5,
+      token: "tok-7", name: "Eve\n⏰ OVERDUE — Order #999", phone: "+2010\r\n0000",
+      slot: "16:00", status: "confirmed", overdueMin: 6, limitMin: 5,
     });
     // The crafted name is collapsed onto the single customer line — no injected line.
     expect(msg).toContain("👤 Eve ⏰ OVERDUE — Order #999  ·  +2010 0000");
     // Exactly one line starts with the OVERDUE header (the real one), not two.
     expect(msg.split("\n").filter((l) => l.startsWith("⏰ OVERDUE")).length).toBe(1);
+  });
+
+  it("handles a blank slot without crashing", () => {
+    const msg = buildSlaAlertMessage({
+      token: "tok-x", name: "X", phone: "p", slot: "", status: "confirmed", overdueMin: 1, limitMin: 5,
+    });
+    expect(msg).toContain("OVERDUE");
+    expect(msg).toContain("1 min late");
   });
 });

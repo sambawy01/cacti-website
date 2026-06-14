@@ -1,6 +1,6 @@
 import type { InlineKeyboard } from "./telegram";
 import type { OrderStatus } from "./appsScript";
-import { isActiveStatus, stageActionLabel, targetLine } from "./sla";
+import { isActiveStatus, stageActionLabel, targetLine, cairoSlotInstant } from "./sla";
 
 export interface OrderForMessage {
   name: string;
@@ -13,6 +13,7 @@ export interface OrderForMessage {
   orderTotal: number;
   itemCount: number;
   deliverySlot: string;
+  deliveryDate: string;
   paymentMethod: "cod" | "card_on_delivery" | "instapay";
   trackingToken: string;
   status: OrderStatus;
@@ -55,7 +56,10 @@ export function buildOrderMessage(o: OrderForMessage): string {
     `Total: ${o.orderTotal} EGP  ·  ${o.itemCount} item(s)`,
   );
   if (isActiveStatus(o.status)) {
-    lines.push("", targetLine(o.status, new Date()));
+    // Anchor the target to the delivery slot (works backward from it), not to
+    // "now"; fall back to entered-relative if the slot can't be parsed.
+    const slotInstant = cairoSlotInstant(o.deliveryDate, o.deliverySlot);
+    lines.push("", targetLine(o.status, new Date(), slotInstant));
   }
   return lines.join("\n");
 }
@@ -123,22 +127,27 @@ export function delayKeyboard(token: string): InlineKeyboard {
 }
 
 export interface SlaAlertInput {
-  id: number | string;
+  token: string;
   name: string;
   phone: string;
+  slot: string; // HH:mm (Cairo wall-clock); "" if unknown
   status: "pending_approval" | "confirmed" | "preparing" | "out_for_delivery";
   overdueMin: number;
   limitMin: number;
 }
 
 /** A self-contained, actionable overdue alert for the sales group. Pair it with
- * keyboardForStatus(status, token) so a tap advances the order like the ticket. */
+ * keyboardForStatus(status, token) so a tap advances the order like the ticket.
+ * The reference is the tracking-token tail + slot (friendly), NOT the raw 13-digit
+ * order id. */
 export function buildSlaAlertMessage(o: SlaAlertInput): string {
   // Collapse any newline/control chars so a crafted customer name/phone can't
   // distort the alert layout (e.g. inject fake header lines).
   const oneLine = (s: string): string => s.replace(/[\r\n\t]+/g, " ").trim();
+  const ref = o.token ? `#${o.token.slice(-6)}` : "";
+  const slotPart = /^\d{1,2}:\d{2}$/.test(o.slot) ? `  ·  🕒 ${slotLabel(o.slot)}` : "";
   return [
-    `⏰ OVERDUE — Order #${o.id}`,
+    `⏰ OVERDUE — Order ${ref}${slotPart}`.trim(),
     `👤 ${oneLine(o.name)}  ·  ${oneLine(o.phone)}`,
     `"${stageActionLabel(o.status)}" is ${o.overdueMin} min late (target ${o.limitMin} min)`,
     "👇 tap to act",

@@ -1227,6 +1227,7 @@ function slaListActiveOrders() {
       sla_alerted_at: String(r.sla_alerted_at || ''),
       name: String(r.name || ''),
       phone: String(r.phone || ''),
+      delivery_date: normalizeDateString(r.delivery_date),
       delivery_slot: normalizeSlotString(r.delivery_slot),
       order_summary: String(r.order_summary || ''),
     });

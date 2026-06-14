@@ -4,7 +4,8 @@ import { slaListActiveOrders, markSlaAlerted, type SlaActiveOrder } from "@/lib/
 import { sendMessage } from "@/lib/telegram";
 import { buildSlaAlertMessage, keyboardForStatus } from "@/lib/orderMessage";
 import {
-  isActiveStatus, shouldAlert, overdueMinutes, STAGE_LIMITS_MIN, withinOperatingHours, type ActiveStatus,
+  isActiveStatus, shouldAlert, overdueMinutesDisplay, STAGE_LIMITS_MIN, withinOperatingHours,
+  cairoSlotInstant, type ActiveStatus,
 } from "@/lib/sla";
 import type { OrderStatus } from "@/lib/appsScript";
 
@@ -54,12 +55,16 @@ export async function GET(request: Request): Promise<Response> {
     const stageEnteredAt = parseDate(o.status_changed_at);
     if (!stageEnteredAt) continue; // can't compute a deadline without an anchor
     const lastAlertedAt = parseDate(o.sla_alerted_at);
-    if (!shouldAlert({ status: o.status, stageEnteredAt, lastAlertedAt, now })) continue;
+    // Deadlines work BACKWARD from the delivery slot. Build the Cairo slot
+    // instant from date + slot; a null (unparseable) slot makes the engine fall
+    // back to the entered-relative deadline so nothing goes un-tracked.
+    const slotInstant = cairoSlotInstant(o.delivery_date, o.delivery_slot);
+    if (!shouldAlert({ status: o.status, stageEnteredAt, lastAlertedAt, now, slotInstant })) continue;
 
     const status = o.status as ActiveStatus;
     const text = buildSlaAlertMessage({
-      id: o.id, name: o.name, phone: o.phone, status,
-      overdueMin: overdueMinutes(status, stageEnteredAt, now),
+      token: o.tracking_token, name: o.name, phone: o.phone, slot: o.delivery_slot, status,
+      overdueMin: overdueMinutesDisplay(status, stageEnteredAt, now, slotInstant),
       limitMin: STAGE_LIMITS_MIN[status],
     });
     try {
@@ -73,7 +78,14 @@ export async function GET(request: Request): Promise<Response> {
         console.error("[sla-check] send rejected", o.tracking_token, res.status, res.description);
         continue;
       }
-      await markSlaAlerted(o.tracking_token);
+      // The alert went out. Persist the throttle marker; if the WRITE fails,
+      // log it and do NOT count it as throttled — leaving sla_alerted_at stale
+      // means it retries next run (per-minute) rather than silently succeeding.
+      const mark = await markSlaAlerted(o.tracking_token);
+      if (!mark.success) {
+        console.error("[sla-check] markSlaAlerted failed (will retry next run)", o.tracking_token, mark.error);
+        continue;
+      }
       alerted += 1;
     } catch (err) {
       console.error("[sla-check] alert failed for", o.tracking_token, err);

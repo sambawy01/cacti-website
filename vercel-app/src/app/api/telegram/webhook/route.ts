@@ -4,7 +4,7 @@ import { setOrderStatusByToken, getOrderStatus, delayOrder, type OrderStatus } f
 import { answerCallbackQuery, editMessageText, editMessageReplyMarkup, sendMessage, type InlineKeyboard } from "@/lib/telegram";
 import { actionToStatus, keyboardForStatus, delayKeyboard, delayActionMinutes } from "@/lib/orderMessage";
 import { loyverseConfigured, pushReceipt, parseOrderSummary, type LoyverseOrder } from "@/lib/loyverse";
-import { isActiveStatus, targetLine } from "@/lib/sla";
+import { isActiveStatus, targetLine, cairoSlotInstant, type ActiveStatus } from "@/lib/sla";
 import { confirmationEmail, statusEmail, declineEmail, delayEmail, sendEmail, type StatusEmailStatus } from "@/lib/email";
 import type { PaymentMethod } from "@/lib/validation";
 
@@ -258,19 +258,35 @@ export async function POST(request: Request): Promise<Response> {
     try {
       const r = await delayOrder(token, delayMins);
       if (r.success) {
-        // Restore the order's CURRENT-status keyboard so the owner can keep acting
-        // (advance status, or delay again). Leave the existing keyboard if status
-        // can't be read.
-        const kb = await statusKeyboard(token);
-        // Strip any prior "Delayed" line so a second delay replaces it rather
-        // than stacking duplicate ETA lines (the owner can delay again).
+        // Fetch the order's CURRENT state (status + the NEW slot/date, since
+        // delayOrder just shifted the slot) so we can both restore its keyboard
+        // and refresh the slot-anchored 🎯 target. Non-fatal if it can't be read.
+        let detailOrder: { status: string; deliveryDate?: string; deliverySlot?: string } | null = null;
+        try {
+          const detail = await getOrderStatus(token);
+          if (detail.success && detail.order) detailOrder = detail.order;
+        } catch (e) {
+          console.error("[webhook] delay: status fetch failed (non-fatal):", e);
+        }
+        const kb = detailOrder?.status
+          ? keyboardForStatus(detailOrder.status as OrderStatus, token)
+          : undefined;
+        // Strip any prior "Delayed" line (so a second delay replaces rather than
+        // stacks) AND any stale "🎯" target line (the slot moved, so the
+        // slot-anchored target moved too).
         const base = (cb.message.text || "Order")
           .split("\n")
-          .filter((line) => !line.startsWith("⏰ Delayed"))
+          .filter((line) => !line.startsWith("⏰ Delayed") && !line.startsWith("🎯"))
           .join("\n")
           .replace(/\n+$/, "");
         const etaLine = r.newLabel ? `⏰ Delayed → new ETA ${r.newLabel}` : "⏰ Delayed";
-        await editMessageText(cb.message.chat.id, cb.message.message_id, `${base}\n\n${etaLine}`, kb).catch(() => {});
+        // Re-append a fresh slot-anchored 🎯 line for the order's current stage.
+        let targetSuffix = "";
+        if (detailOrder && isActiveStatus(detailOrder.status)) {
+          const slotInstant = cairoSlotInstant(detailOrder.deliveryDate || "", detailOrder.deliverySlot || "");
+          targetSuffix = `\n${targetLine(detailOrder.status as ActiveStatus, new Date(), slotInstant)}`;
+        }
+        await editMessageText(cb.message.chat.id, cb.message.message_id, `${base}\n\n${etaLine}${targetSuffix}`, kb).catch(() => {});
         await answerCallbackQuery(cb.id, `ETA +${delayMins} min`).catch(() => {});
         // Email the customer the new ETA (deferred, non-fatal).
         if (r.newLabel) {
@@ -300,7 +316,25 @@ export async function POST(request: Request): Promise<Response> {
         .filter((line) => !line.startsWith("🎯"))
         .join("\n")
         .replace(/\n+$/, "");
-      const tgt = isActiveStatus(status) ? `\n${targetLine(status, new Date())}` : "";
+      // For active statuses, fetch the live order so the refreshed 🎯 is anchored
+      // to the real delivery slot (slot − stage offset), not an entered-relative
+      // "now + limit" target — the latter re-introduces false urgency for advance
+      // orders whose slot is hours away. Fall back to the entered-relative target
+      // only if the fetch fails; gated on isActiveStatus so terminal taps
+      // (delivered/cancelled) skip the Apps Script round-trip. The cron, which
+      // reads the live delivery_slot, still owns the slot-anchored breach timing.
+      let tgt = "";
+      if (isActiveStatus(status)) {
+        let slotInstant: Date | null = null;
+        try {
+          const detail = await getOrderStatus(token);
+          if (detail.success && detail.order)
+            slotInstant = cairoSlotInstant(detail.order.deliveryDate || "", detail.order.deliverySlot || "");
+        } catch (e) {
+          console.error("[webhook] status-advance slot fetch failed (non-fatal):", e);
+        }
+        tgt = `\n${targetLine(status, new Date(), slotInstant)}`;
+      }
       await editMessageText(
         cb.message.chat.id,
         cb.message.message_id,

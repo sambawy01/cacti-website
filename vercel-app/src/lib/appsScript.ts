@@ -141,7 +141,8 @@ export interface SlaActiveOrder {
   sla_alerted_at: string;     // ISO or "" (never alerted)
   name: string;
   phone: string;
-  delivery_slot: string;
+  delivery_date: string;      // yyyy-MM-dd (Cairo wall-clock) — needed to build the slot instant
+  delivery_slot: string;      // HH:mm (Cairo wall-clock)
   order_summary: string;
 }
 
