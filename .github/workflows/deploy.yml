@@ -28,6 +28,10 @@ jobs:
       - run: npm ci
 
       - run: npm run build
+        env:
+          # Public endpoint (not a secret) — bakes the production AI chat backend
+          # URL into the SPA bundle so the site calls the Vercel route, not localhost.
+          VITE_AI_ENDPOINT: https://bistro-cloud-orders.vercel.app/api/ai-chat
 
       - name: Copy 404.html for SPA routing
         run: cp dist/index.html dist/404.html
