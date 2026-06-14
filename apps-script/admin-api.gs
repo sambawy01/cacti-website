@@ -155,6 +155,12 @@ function doGet(e) {
         return jsonpResponse(callback, markSlaAlerted(params.token));
       case 'delayOrder':
         return jsonpResponse(callback, delayOrder(params.token, parseInt(params.minutes)));
+      // ── Expenses: owner-DM Telegram agent logs confirmed receipts here ──
+      // Admin-gated by the top-level getRole(password) guard above — the same
+      // mechanism every other write action (delayOrder, setOrderStatusByToken)
+      // relies on. The agent sends a valid role password as e.parameter.password.
+      case 'logExpense':
+        return jsonpResponse(callback, logExpense(params));
       case 'orderFinalize':
         return jsonpResponse(callback, orderFinalize(params.token, params.instapayDetails));
       case 'setResendKey':
@@ -480,6 +486,7 @@ var CRM_TABS = {
   Pipeline: ['id', 'timestamp', 'type', 'deal_name', 'contact_name', 'company', 'email', 'stage', 'value', 'event_date', 'guest_count', 'location', 'status', 'notes'],
   Customers: ['phone', 'name', 'email', 'address', 'location', 'first_seen', 'last_order', 'order_count'],
   Settings: ['setting', 'value'],
+  Expenses: ['id', 'timestamp', 'vendor', 'amount_egp', 'date', 'category', 'note', 'source', 'logged_by'],
 };
 
 /**
@@ -1486,6 +1493,77 @@ function crmAppendRow(tabName, data) {
     return data[h] !== undefined ? data[h] : '';
   });
   sheet.appendRow(newRow);
+}
+
+// ── Expenses helper: ensure the Expenses tab exists, with the `date` column
+// hardened to plain text. crmGetSheet auto-creates the tab from CRM_TABS if
+// missing. We then force the `date` column to text format (same durable guard
+// the Orders tab uses for date-like columns) so Sheets never coerces a
+// 'yyyy-MM-dd' string into a date serial. amount_egp is left numeric so it can
+// be summed — mirroring how the Orders tab keeps order_total numeric. ──
+function ensureExpensesSheet_() {
+  var sheet = crmGetSheet('Expenses'); // auto-creates from CRM_TABS if missing
+  var lastCol = sheet.getLastColumn();
+  if (lastCol > 0) {
+    var headers = sheet.getRange(1, 1, 1, lastCol).getValues()[0].map(function (h) {
+      return String(h).trim().toLowerCase().replace(/ /g, '_');
+    });
+    var dateIdx = headers.indexOf('date');
+    if (dateIdx >= 0) {
+      // Covers rows up to getMaxRows() now; the per-row hardening in logExpense
+      // is the durable guarantee for rows appended beyond that range.
+      sheet.getRange(1, dateIdx + 1, sheet.getMaxRows(), 1).setNumberFormat('@');
+    }
+  }
+  return sheet;
+}
+
+// ── Expenses: append a confirmed receipt logged by the owner-DM Telegram agent.
+// Admin-gated upstream by the getRole(password) guard in doGet. Reads the GET
+// params the TS client sends: vendor, amount, date, category, note, source.
+// Validates a non-empty vendor and a finite amount > 0. ──
+function logExpense(params) {
+  var vendorRaw = String(params.vendor || '').trim();
+  var amount = Number(params.amount);
+  if (!vendorRaw) return { success: false, error: 'vendor required' };
+  if (!isFinite(amount) || amount <= 0) return { success: false, error: 'amount required' };
+
+  var expId = 'exp-' + Date.now();
+  var dateStr = sheetSafeText(String(params.date || ''));
+  var sheet = ensureExpensesSheet_();
+
+  // Header-based append (project convention — column order never matters).
+  crmAppendRow('Expenses', {
+    id: expId,
+    timestamp: new Date(),
+    vendor: sheetSafeText(vendorRaw),
+    amount_egp: amount,
+    date: dateStr,
+    category: sheetSafeText(String(params.category || 'other')),
+    note: sheetSafeText(String(params.note || '')),
+    source: sheetSafeText(String(params.source || '')),
+    logged_by: 'telegram-agent'
+  });
+
+  // Force the just-appended `date` cell to plain text. Sheets otherwise coerces
+  // 'yyyy-MM-dd' into a date serial on rows appended beyond the formatted range.
+  // (Same durable per-row guard orderPlace uses for delivery_date.)
+  try {
+    var eRow = sheet.getLastRow();
+    var eHeaders = sheet.getRange(1, 1, 1, sheet.getLastColumn()).getValues()[0].map(function (h) {
+      return String(h).trim().toLowerCase().replace(/ /g, '_');
+    });
+    var eDateIdx = eHeaders.indexOf('date');
+    if (eDateIdx >= 0) {
+      var eCell = sheet.getRange(eRow, eDateIdx + 1);
+      eCell.setNumberFormat('@'); // format FIRST, then value, so it stores as text
+      eCell.setValue(dateStr);
+    }
+  } catch (eFmt) {
+    Logger.log('Expense date-cell hardening failed (non-fatal): ' + eFmt);
+  }
+
+  return { success: true, id: expId };
 }
 
 // ── CRM helper: read all rows from a tab ──
