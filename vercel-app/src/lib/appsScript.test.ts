@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
-import { placeOrder, setOrderStatusByToken } from "./appsScript";
+import { placeOrder, setOrderStatusByToken, slaListActiveOrders, markSlaAlerted } from "./appsScript";
 
 const ORIG = { ...process.env };
 
@@ -78,5 +78,28 @@ describe("setOrderStatusByToken", () => {
     expect(url).toContain("token=tok-1");
     expect(url).toContain("status=confirmed");
     expect(url).toContain("password=secret");
+  });
+});
+
+describe("slaListActiveOrders", () => {
+  it("GETs the admin-gated action and returns the orders array", async () => {
+    const spy = mockFetchOnce({ success: true, orders: [{ tracking_token: "t1" }] });
+    const r = await slaListActiveOrders();
+    expect(r.success).toBe(true);
+    expect(r.orders?.[0].tracking_token).toBe("t1");
+    const url = spy.mock.calls[0][0] as string;
+    expect(url).toContain("action=slaListActiveOrders");
+    expect(url).toContain("password=secret");
+  });
+});
+
+describe("markSlaAlerted", () => {
+  it("GETs the admin-gated action with the token", async () => {
+    const spy = mockFetchOnce({ success: true });
+    const r = await markSlaAlerted("tok-9");
+    expect(r.success).toBe(true);
+    const url = spy.mock.calls[0][0] as string;
+    expect(url).toContain("action=markSlaAlerted");
+    expect(url).toContain("token=tok-9");
   });
 });

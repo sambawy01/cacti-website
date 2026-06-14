@@ -132,3 +132,29 @@ export async function getOrderStatus(token: string, withPrivate = false): Promis
   }
   return appsScriptGet<OrderStatusDetail>(params);
 }
+
+export interface SlaActiveOrder {
+  id: number | string;
+  tracking_token: string;
+  status: string;
+  status_changed_at: string; // ISO; Apps Script falls back to creation timestamp
+  sla_alerted_at: string;     // ISO or "" (never alerted)
+  name: string;
+  phone: string;
+  delivery_slot: string;
+  order_summary: string;
+}
+
+/** Today's (Cairo) active orders with the fields the SLA cron needs. Admin-gated. */
+export async function slaListActiveOrders(): Promise<{ success: boolean; orders?: SlaActiveOrder[]; error?: string }> {
+  const password = process.env.APPS_SCRIPT_ADMIN_PASSWORD;
+  if (!password) throw new Error("APPS_SCRIPT_ADMIN_PASSWORD is not configured");
+  return appsScriptGet({ action: "slaListActiveOrders", password });
+}
+
+/** Record that an SLA breach alert was just sent for this order. Admin-gated. */
+export async function markSlaAlerted(token: string): Promise<{ success: boolean; error?: string }> {
+  const password = process.env.APPS_SCRIPT_ADMIN_PASSWORD;
+  if (!password) throw new Error("APPS_SCRIPT_ADMIN_PASSWORD is not configured");
+  return appsScriptGet({ action: "markSlaAlerted", password, token });
+}
