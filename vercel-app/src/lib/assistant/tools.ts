@@ -19,16 +19,30 @@
  */
 
 import {
-  slaListActiveOrders, getOrderStatus, getAvailabilitySummary, getOrdersList, getCrmOrdersList,
+  slaListActiveOrders, getOrderStatus, getAvailabilitySummary, getCrmOrdersList,
   getContactsList, getMenuList, getStockList, getPantryList,
   setOrderStatusByToken, delayOrder, orderFinalize,
   toggleMenuVisibility, togglePantryVisibility, decideRequisition, logExpense,
-  type OrderStatus,
+  type OrderStatus, type CrmOrder,
 } from "@/lib/appsScript";
 import { sendMessage } from "@/lib/telegram";
 
 export interface ToolContext {
   chatId: number;
+}
+
+/**
+ * Cairo (Africa/Cairo) calendar date as yyyy-MM-dd. Used by revenue_summary to
+ * window CRM orders client-side, because getCRMOrders ignores any range param
+ * and returns the whole Orders tab. en-CA formats as yyyy-MM-dd.
+ */
+function cairoDate(d: Date = new Date()): string {
+  return new Intl.DateTimeFormat("en-CA", {
+    timeZone: "Africa/Cairo",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).format(d);
 }
 
 // --- Ollama tool schemas ------------------------------------------------------
@@ -97,12 +111,12 @@ export const TOOLS: OllamaTool[] = [
   ),
   tool(
     "revenue_summary",
-    "Total revenue today or this week, summed across web orders and CRM orders. Read-only.",
+    "Total revenue today or this week from CRM orders (excludes declined/cancelled). Read-only.",
     { period: { type: "string", enum: ["today", "week"], description: "Time window (default today)" } }
   ),
   tool(
     "customer_lookup",
-    "Find a customer by name or phone: name, phone, number of orders. Read-only.",
+    "Find a contact by name or phone: name, phone, email. Read-only.",
     { query: { type: "string", description: "Name or phone fragment to search for" } },
     ["query"]
   ),
@@ -144,22 +158,22 @@ export const TOOLS: OllamaTool[] = [
   ),
   tool(
     "menu_set_out_of_stock",
-    "Mark a menu item out of stock (hidden) or available again. MUTATING — requires confirmation. Get the id via menu_list first.",
+    "Mark a menu item out of stock (hidden) or available again. MUTATING — requires confirmation. Call menu_list FIRST to get the item's row number (the leading #).",
     {
-      id: { type: "string", description: "Menu (or pantry) item id" },
+      rowIndex: { type: "number", description: "The item's sheet row number, shown as the leading #N in menu_list output" },
       outOfStock: { type: "boolean", description: "true = mark out of stock/hidden, false = make available" },
       pantry: { type: "boolean", description: "true to target a pantry item instead of a menu item" },
     },
-    ["id", "outOfStock"]
+    ["rowIndex", "outOfStock"]
   ),
   tool(
     "requisition_decide",
-    "Approve or reject a stock requisition. MUTATING — requires confirmation.",
+    "Approve or reject a stock requisition by its sheet row number. MUTATING — requires confirmation. The owner must supply the requisition's row number (there is no requisition-list tool yet).",
     {
-      id: { type: "string", description: "Requisition id" },
+      rowIndex: { type: "number", description: "Requisition row number in the Requisitions sheet (>= 2)" },
       decision: { type: "string", enum: ["approve", "reject"], description: "Decision" },
     },
-    ["id", "decision"]
+    ["rowIndex", "decision"]
   ),
   tool(
     "broadcast_group",
@@ -296,16 +310,18 @@ export function describeMutation(name: string, args: Record<string, unknown>): s
     case "menu_set_out_of_stock": {
       const out = args.outOfStock === true;
       const where = args.pantry ? "pantry item" : "menu item";
+      const row = typeof args.rowIndex === "number" ? args.rowIndex : "?";
       return (
-        `Mark ${where} ${s("id")} ${out ? "OUT OF STOCK (hidden)" : "available"}\n` +
+        `Mark ${where} (row ${row}) ${out ? "OUT OF STOCK (hidden)" : "available"}\n` +
         `→ The change goes LIVE on the public menu immediately.`
       );
     }
     case "requisition_decide": {
       const reject = args.decision === "reject";
+      const row = typeof args.rowIndex === "number" ? args.rowIndex : "?";
       return (
-        `${reject ? "Reject" : "Approve"} requisition ${s("id")}\n` +
-        `→ Updates the requisition's status in the stock books.`
+        `${reject ? "Reject" : "Approve"} requisition (row ${row})\n` +
+        `→ Updates the requisition's status in the stock books${reject ? "" : " and deducts approved OUT items from stock"}.`
       );
     }
     case "broadcast_group":
@@ -376,34 +392,65 @@ export async function executeTool(name: string, args: Record<string, unknown>, _
         return `${o.name}: ${o.status}, slot ${o.deliverySlot} on ${o.deliveryDate}, ${o.orderTotal} EGP — ${o.orderSummary}`;
       }
       case "capacity_today": {
-        const r = await getAvailabilitySummary(args.slot ? String(args.slot) : undefined);
-        if (!r.success || !r.slots) return "Capacity info unavailable.";
-        return r.slots.map((s) => `${s.slot}: ${s.ordersLeft ?? "?"} orders / ${s.itemsLeft ?? "?"} items left`).join("\n") || "No slots configured.";
+        // getAvailability ignores any slot param and returns { availability:
+        // { slots: [{ time, status }] } }, so filter to one slot client-side.
+        const r = await getAvailabilitySummary();
+        const slots = r.availability?.slots;
+        if (!r.success || !slots) return "Capacity info unavailable.";
+        const wanted = args.slot ? String(args.slot).trim() : "";
+        const shown = wanted ? slots.filter((s) => s.time === wanted) : slots;
+        const lines = shown.map((s) => `${s.time}: ${s.status === "busy" ? "full/busy" : "open"}`);
+        if (!lines.length) return wanted ? `No slot ${wanted} today.` : "No slots configured.";
+        return (r.availability?.paused ? "Ordering is PAUSED.\n" : "") + lines.join("\n");
       }
       case "revenue_summary": {
         const period = args.period === "week" ? "week" : "today";
-        const [today, crm] = await Promise.all([getOrdersList(period), getCrmOrdersList(period)]);
-        // Never fabricate a zero: if both sources failed, say so rather than
-        // report "0 EGP" — a misleading answer to a money question.
-        if (!today.success && !crm.success) return "Revenue is temporarily unavailable.";
-        const rows = [...(today.orders ?? []), ...(crm.orders ?? [])];
+        // getCRMOrders is the real revenue source (order_total is numeric there);
+        // getOrders reads the legacy People sheet and has no usable totals. The
+        // server ignores range, so window the rows by Cairo date here.
+        const crm = await getCrmOrdersList();
+        // Never fabricate a zero: if the source failed, say so rather than report
+        // "0 EGP" — a misleading answer to a money question.
+        if (!crm.success || !crm.items) return "Revenue is temporarily unavailable.";
+        const today = cairoDate();
+        const start = period === "week" ? cairoDate(new Date(Date.now() - 6 * 86_400_000)) : today;
+        const realized = (o: CrmOrder) => {
+          const st = String(o.status || "").toLowerCase();
+          if (st === "declined" || st === "cancelled") return false;
+          const d = String(o.delivery_date || "") || (o.timestamp ? cairoDate(new Date(o.timestamp)) : "");
+          return d !== "" && d >= start && d <= today;
+        };
+        const rows = crm.items.filter(realized);
         const total = rows.reduce((sum, o) => sum + (Number(o.order_total) || 0), 0);
         return `Revenue (${period}): ${total} EGP across ${rows.length} orders.`;
       }
       case "customer_lookup": {
-        const r = await getContactsList(String(args.query ?? args.name ?? args.phone ?? ""));
-        if (!r.success || !r.contacts?.length) return "No matching customer.";
-        return r.contacts.map((c) => `${c.name} — ${c.phone ?? ""} — ${c.orders ?? 0} orders`).join("\n");
+        // getContacts ignores `q` and returns the whole Contacts tab under
+        // `items`, so match client-side. Contacts carry no order count.
+        const q = String(args.query ?? args.name ?? args.phone ?? "").trim().toLowerCase();
+        const r = await getContactsList();
+        if (!r.success || !r.items) return "Customer lookup is unavailable.";
+        const matches = q
+          ? r.items.filter((c) => `${c.name ?? ""} ${c.phone ?? ""} ${c.email ?? ""}`.toLowerCase().includes(q))
+          : r.items;
+        if (!matches.length) return "No matching customer.";
+        return matches.slice(0, 20).map((c) => `${c.name}${c.phone ? ` — ${c.phone}` : ""}${c.email ? ` — ${c.email}` : ""}`).join("\n");
       }
       case "menu_list": {
+        // Lead each line with the row number so the owner/model can pass it to
+        // menu_set_out_of_stock (the toggle is keyed on rowIndex, not id).
         const r = await getMenuList();
-        return r.success && r.items ? r.items.map((i) => `${i.name}${i.visible === false ? " (hidden)" : ""}`).join("\n") || "No menu items." : "Menu unavailable.";
+        if (!r.success || !r.items) return "Menu unavailable.";
+        return r.items.map((i) => {
+          const hidden = String(i.status ?? "").toLowerCase() === "hidden";
+          return `#${i._rowIndex} ${i.name}${i.status ? ` — ${i.status}` : ""}${hidden ? " (hidden)" : ""}`;
+        }).join("\n") || "No menu items.";
       }
       case "stock_list": {
         const [stock, pantry] = await Promise.all([getStockList(), getPantryList()]);
         const lines = [
-          ...(stock.items ?? []).map((s) => `${s.name}: ${s.qty ?? "?"} ${s.unit ?? ""}`.trim()),
-          ...(pantry.items ?? []).map((p) => `${p.name}${p.visible === false ? " (hidden)" : ""}`),
+          ...(stock.items ?? []).map((s) => `${s.name}: ${s.qty_on_hand ?? "?"} ${s.unit ?? ""}`.trim()),
+          ...(pantry.items ?? []).map((p) => `#${p._rowIndex} ${p.name}${String(p.status ?? "").toLowerCase() === "hidden" ? " (hidden)" : ""}`),
         ];
         return lines.join("\n") || "Stock unavailable.";
       }
@@ -423,13 +470,22 @@ export async function executeTool(name: string, args: Record<string, unknown>, _
         return r.success ? "Order approved/finalized." : `Failed: ${r.error ?? "unknown"}`;
       }
       case "menu_set_out_of_stock": {
-        const visible = args.outOfStock !== true;
-        const r = args.pantry ? await togglePantryVisibility(String(args.id), visible) : await toggleMenuVisibility(String(args.id), visible);
-        return r.success ? `Item ${visible ? "available" : "marked out of stock"}.` : `Failed: ${r.error ?? "unknown"}`;
+        const rowIndex = Number(args.rowIndex);
+        if (!Number.isInteger(rowIndex) || rowIndex < 2) return "A valid menu row number (from menu_list) is required.";
+        // The server writes this literal string into the sheet's status column;
+        // 'hidden' / 'available' match what the admin UI uses.
+        const status = args.outOfStock === true ? "hidden" : "available";
+        const r = args.pantry ? await togglePantryVisibility(rowIndex, status) : await toggleMenuVisibility(rowIndex, status);
+        return r.success ? `Item ${status === "hidden" ? "marked out of stock (hidden)" : "available"}.` : `Failed: ${r.error ?? "unknown"}`;
       }
       case "requisition_decide": {
-        const r = await decideRequisition(String(args.id), args.decision === "reject" ? "reject" : "approve");
-        return r.success ? `Requisition ${args.decision === "reject" ? "rejected" : "approved"}.` : `Failed: ${r.error ?? "unknown"}`;
+        const rowIndex = Number(args.rowIndex);
+        if (!Number.isInteger(rowIndex) || rowIndex < 2) return "A valid requisition row number is required.";
+        const decision = args.decision === "reject" ? "reject" : "approve";
+        const r = await decideRequisition(rowIndex, decision);
+        if (!r.success) return `Failed: ${r.error ?? "unknown"}`;
+        const verb = decision === "reject" ? "rejected" : "approved";
+        return r.warning ? `Requisition ${verb} (${r.warning}).` : `Requisition ${verb}.`;
       }
       case "broadcast_group": {
         const group = process.env.TELEGRAM_OWNER_CHAT_ID;

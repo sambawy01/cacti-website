@@ -557,6 +557,24 @@ describe("owner-DM agent routing", () => {
     expect(sendMessage).toHaveBeenCalled(); // generic refusal
   });
 
+  it("a thrown getOwnerChatId (corrupt owner record) degrades to a graceful 200, not a 500 that drops the message", async () => {
+    // The update_id is already marked seen by the time the owner gate runs, so an
+    // unguarded throw would 500 → Telegram redelivers → dedupe no-ops → the
+    // message is lost. The gate must catch the throw, reply gracefully, and 200.
+    const { getOwnerChatId } = await import("@/lib/assistant/state");
+    const { runAgent } = await import("@/lib/assistant/agent");
+    (runAgent as any).mockClear();
+    (getOwnerChatId as any).mockRejectedValueOnce(new Error("Owner record is corrupt (ill-shaped chatId)"));
+    const res = await POST(req(ownerDm("any active orders?")));
+    expect(res.status).toBe(200);
+    await flushAfter();
+    expect(runAgent).not.toHaveBeenCalled();   // never reaches the agent
+    expect(sendMessage).toHaveBeenCalled();     // owner gets a graceful error, not silence
+    const text = (sendMessage as any).mock.calls.at(-1)?.[1] as string;
+    expect(text).not.toMatch(/private assistant/i); // not the non-owner refusal
+    expect(text).toMatch(/went wrong/i);
+  });
+
   it("a confirm tap executes the pending action exactly once", async () => {
     const data = `confirm:${PENDING_ID}`;
     const res = await POST(

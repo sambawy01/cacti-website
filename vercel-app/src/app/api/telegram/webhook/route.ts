@@ -556,7 +556,19 @@ async function handleMessageUpdate(message: TgMessage | undefined): Promise<Resp
   }
 
   // Fail-closed owner gate: only the bound owner's chat reaches the agent.
-  const owner = await getOwnerChatId();
+  // getOwnerChatId() THROWS on a corrupt/ill-shaped owner record (it refuses to
+  // map that to "unbound"). The update_id is already marked seen, so letting the
+  // throw escape would 500 and drop the message on Telegram's redelivery. Catch
+  // it here (matching handleStart / handleConfirmCallback) and degrade to a
+  // graceful reply + 200 so nothing silently vanishes.
+  let owner: number | null;
+  try {
+    owner = await getOwnerChatId();
+  } catch (err) {
+    console.error("[webhook] owner-gate read failed (non-fatal):", err);
+    await sendMessage(chatId, "Sorry, something went wrong on my side. Please try again in a moment.").catch(() => {});
+    return new Response("ok", { status: 200 });
+  }
   if (owner === null || chatId !== owner) {
     await sendMessage(chatId, GENERIC_REFUSAL).catch(() => {});
     return new Response("ok", { status: 200 });

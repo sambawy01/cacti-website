@@ -1,6 +1,10 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { placeOrder, setOrderStatusByToken, slaListActiveOrders, markSlaAlerted } from "./appsScript";
-import { getAvailabilitySummary, getOrdersList, getMenuList, logExpense } from "./appsScript";
+import {
+  getAvailabilitySummary, getOrdersList, getMenuList, getPantryList, getStockList,
+  getCrmOrdersList, getContactsList, toggleMenuVisibility, togglePantryVisibility,
+  decideRequisition, logExpense,
+} from "./appsScript";
 
 const ORIG = { ...process.env };
 
@@ -112,35 +116,139 @@ describe("agent read clients", () => {
   });
   afterEach(() => vi.restoreAllMocks());
 
-  it("getMenuList calls action=getMenu and returns items", async () => {
+  it("getMenuList calls action=getMenu WITH the admin password (getMenu is admin-gated) and returns items", async () => {
     const spy = vi.spyOn(globalThis, "fetch").mockResolvedValue(
-      new Response(JSON.stringify({ success: true, items: [{ id: "1", name: "Bone Broth", visible: true }] }), { status: 200 }),
+      new Response(JSON.stringify({ success: true, items: [{ _rowIndex: 2, id: 1, name: "Bone Broth", status: "available" }] }), { status: 200 }),
     );
     const r = await getMenuList();
     expect(r.success).toBe(true);
-    expect((spy.mock.calls[0][0] as string)).toContain("action=getMenu");
+    expect(r.items?.[0]._rowIndex).toBe(2);
+    const url = spy.mock.calls[0][0] as string;
+    expect(url).toContain("action=getMenu");
+    expect(url).toContain("password=secret");
   });
 
-  it("getOrdersList passes the admin password and a range param", async () => {
+  it("getPantryList is admin-gated and returns items", async () => {
     const spy = vi.spyOn(globalThis, "fetch").mockResolvedValue(
-      new Response(JSON.stringify({ success: true, orders: [] }), { status: 200 }),
+      new Response(JSON.stringify({ success: true, items: [{ _rowIndex: 2, id: 1, name: "Granola", status: "hidden" }] }), { status: 200 }),
     );
-    await getOrdersList("today");
+    const r = await getPantryList();
+    expect(r.items?.[0].status).toBe("hidden");
+    const url = spy.mock.calls[0][0] as string;
+    expect(url).toContain("action=getPantry");
+    expect(url).toContain("password=secret");
+  });
+
+  it("getStockList reads qty_on_hand/unit under items (action=getStock, admin-gated)", async () => {
+    const spy = vi.spyOn(globalThis, "fetch").mockResolvedValue(
+      new Response(JSON.stringify({ success: true, items: [{ _rowIndex: 2, id: 1, name: "Chicken", qty_on_hand: 12, unit: "kg" }] }), { status: 200 }),
+    );
+    const r = await getStockList();
+    expect(r.items?.[0].qty_on_hand).toBe(12);
+    expect(r.items?.[0].unit).toBe("kg");
+    expect(spy.mock.calls[0][0] as string).toContain("action=getStock");
+  });
+
+  it("getOrdersList (LEGACY People sheet) sends password and does NOT send a range param (server ignores it), returns `orders`", async () => {
+    const spy = vi.spyOn(globalThis, "fetch").mockResolvedValue(
+      new Response(JSON.stringify({ success: true, orders: [{ _rowIndex: 2, Name: "Old" }] }), { status: 200 }),
+    );
+    const r = await getOrdersList();
+    expect(r.success).toBe(true);
     const url = spy.mock.calls[0][0] as string;
     expect(url).toContain("action=getOrders");
     expect(url).toContain("password=secret");
-    expect(url).toContain("range=today");
+    expect(url).not.toContain("range="); // server ignores range — don't pretend to filter
   });
 
-  it("getAvailabilitySummary omits the slot param when none is given, includes it when provided", async () => {
-    // Fresh Response per call — a single Response instance can only be read once.
-    const spy = vi.spyOn(globalThis, "fetch").mockImplementation(
-      async () => new Response(JSON.stringify({ success: true, slots: [] }), { status: 200 }),
+  it("getCrmOrdersList reads rows under `items` (NOT `orders`) and sends no range", async () => {
+    const spy = vi.spyOn(globalThis, "fetch").mockResolvedValue(
+      new Response(JSON.stringify({ success: true, items: [{ _rowIndex: 2, id: 1, order_total: 400, status: "confirmed", delivery_date: "2026-06-14" }] }), { status: 200 }),
     );
-    await getAvailabilitySummary();
-    expect(spy.mock.calls[0][0] as string).not.toContain("slot=");
-    await getAvailabilitySummary("14:00");
-    expect(spy.mock.calls[1][0] as string).toContain("slot=14");
+    const r = await getCrmOrdersList();
+    expect(r.success).toBe(true);
+    expect(r.items?.[0].order_total).toBe(400);
+    const url = spy.mock.calls[0][0] as string;
+    expect(url).toContain("action=getCRMOrders");
+    expect(url).toContain("password=secret");
+    expect(url).not.toContain("range=");
+  });
+
+  it("getContactsList reads rows under `items` (NOT `contacts`) and sends no q", async () => {
+    const spy = vi.spyOn(globalThis, "fetch").mockResolvedValue(
+      new Response(JSON.stringify({ success: true, items: [{ _rowIndex: 2, id: 1, name: "Sara", phone: "+2010" }] }), { status: 200 }),
+    );
+    const r = await getContactsList();
+    expect(r.success).toBe(true);
+    expect(r.items?.[0].name).toBe("Sara");
+    const url = spy.mock.calls[0][0] as string;
+    expect(url).toContain("action=getContacts");
+    expect(url).toContain("password=secret");
+    expect(url).not.toContain("q=");
+  });
+
+  it("getAvailabilitySummary is PUBLIC (no password), sends no slot param, and returns { availability }", async () => {
+    const spy = vi.spyOn(globalThis, "fetch").mockResolvedValue(
+      new Response(JSON.stringify({ success: true, availability: { date: "2026-06-14", slots: [{ time: "14:00", status: "open" }] } }), { status: 200 }),
+    );
+    const r = await getAvailabilitySummary();
+    expect(r.availability?.slots[0].time).toBe("14:00");
+    expect(r.availability?.slots[0].status).toBe("open");
+    const url = spy.mock.calls[0][0] as string;
+    expect(url).toContain("action=getAvailability");
+    expect(url).not.toContain("password="); // public action
+    expect(url).not.toContain("slot=");
+  });
+});
+
+describe("agent mutate clients", () => {
+  beforeEach(() => {
+    process.env.APPS_SCRIPT_URL = "https://script.example/exec";
+    process.env.APPS_SCRIPT_ADMIN_PASSWORD = "secret";
+  });
+  afterEach(() => vi.restoreAllMocks());
+
+  it("toggleMenuVisibility sends rowIndex + status (NOT id/visible)", async () => {
+    const spy = vi.spyOn(globalThis, "fetch").mockResolvedValue(
+      new Response(JSON.stringify({ success: true }), { status: 200 }),
+    );
+    await toggleMenuVisibility(7, "hidden");
+    const url = spy.mock.calls[0][0] as string;
+    expect(url).toContain("action=toggleVisibility");
+    expect(url).toContain("rowIndex=7");
+    expect(url).toContain("status=hidden");
+    expect(url).toContain("password=secret");
+    expect(url).not.toContain("id=");
+    expect(url).not.toContain("visible=");
+  });
+
+  it("togglePantryVisibility sends rowIndex + status", async () => {
+    const spy = vi.spyOn(globalThis, "fetch").mockResolvedValue(
+      new Response(JSON.stringify({ success: true }), { status: 200 }),
+    );
+    await togglePantryVisibility(4, "available");
+    const url = spy.mock.calls[0][0] as string;
+    expect(url).toContain("action=togglePantryVisibility");
+    expect(url).toContain("rowIndex=4");
+    expect(url).toContain("status=available");
+  });
+
+  it("decideRequisition encodes the decision in the action name and sends ONLY rowIndex (no decision param)", async () => {
+    // Fresh Response per call — a single Response body can only be read once.
+    const spy = vi.spyOn(globalThis, "fetch").mockImplementation(
+      async () => new Response(JSON.stringify({ success: true }), { status: 200 }),
+    );
+    await decideRequisition(5, "approve");
+    const approveUrl = spy.mock.calls[0][0] as string;
+    expect(approveUrl).toContain("action=approveRequisition");
+    expect(approveUrl).toContain("rowIndex=5");
+    expect(approveUrl).not.toContain("decision=");
+    expect(approveUrl).not.toContain("id=");
+
+    await decideRequisition(6, "reject");
+    const rejectUrl = spy.mock.calls[1][0] as string;
+    expect(rejectUrl).toContain("action=rejectRequisition");
+    expect(rejectUrl).toContain("rowIndex=6");
   });
 });
 
