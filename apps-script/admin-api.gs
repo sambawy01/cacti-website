@@ -1206,9 +1206,14 @@ function orderSetStatusByToken(token, newStatus) {
 }
 
 /**
- * Today's (Cairo) active orders for the SLA cron. Active = pending_approval,
- * confirmed, preparing, out_for_delivery. status_changed_at falls back to the
- * creation timestamp for rows that predate the column.
+ * Active orders for the SLA cron. Active = pending_approval, confirmed,
+ * preparing, out_for_delivery. Scope: all of TODAY's (Cairo) active orders,
+ * PLUS every pending_approval order regardless of delivery date — approval is
+ * slot-independent, so next-day (and later) orders still get chased to be
+ * approved/declined promptly. The slot-anchored stages (confirmed/preparing/
+ * out_for_delivery) are only tracked on the delivery day, where their deadlines
+ * are meaningful. status_changed_at falls back to the creation timestamp for
+ * rows that predate the column.
  */
 function slaListActiveOrders() {
   var active = { pending_approval: 1, confirmed: 1, preparing: 1, out_for_delivery: 1 };
@@ -1218,7 +1223,8 @@ function slaListActiveOrders() {
   for (var i = 0; i < rows.length; i++) {
     var r = rows[i];
     if (!active[String(r.status)]) continue;
-    if (normalizeDateString(r.delivery_date) !== today) continue;
+    var isPendingApproval = String(r.status) === 'pending_approval';
+    if (!isPendingApproval && normalizeDateString(r.delivery_date) !== today) continue;
     out.push({
       id: r.id,
       tracking_token: String(r.tracking_token || ''),
