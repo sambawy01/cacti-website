@@ -161,6 +161,8 @@ function doGet(e) {
       // relies on. The agent sends a valid role password as e.parameter.password.
       case 'logExpense':
         return jsonpResponse(callback, logExpense(params));
+      case 'getExpenses':
+        return jsonpResponse(callback, getExpenses(params.range));
       case 'orderFinalize':
         return jsonpResponse(callback, orderFinalize(params.token, params.instapayDetails));
       case 'setResendKey':
@@ -1564,6 +1566,33 @@ function logExpense(params) {
   }
 
   return { success: true, id: expId };
+}
+
+// ── Expenses: read the Expenses tab, windowed by Cairo date.
+// Admin-gated upstream by the getRole(password) guard in doGet. Mirrors the
+// crmReadRows read path (header-based, _rowIndex) but — unlike getCRMOrders,
+// which ignores range and returns the whole tab — this DOES window by the
+// `date` column so the owner-digest cron can sum today's / this-week's spend
+// without pulling the entire ledger. range: 'today' (default) | 'week'.
+// 'week' = the trailing 7 Cairo days (today and the 6 before). Rows whose
+// `date` cell is blank or outside the window are excluded. amount_egp comes
+// back as whatever crmReadRows yielded (numeric for clean rows); the caller
+// coerces with Number() so a stray string never breaks the sum. ──
+function getExpenses(range) {
+  var rows = crmReadRows('Expenses');
+  var today = cairoToday();
+  var start = today;
+  if (String(range) === 'week') {
+    var d = new Date();
+    d.setDate(d.getDate() - 6);
+    start = Utilities.formatDate(d, BISTRO_TZ, 'yyyy-MM-dd');
+  }
+  var items = [];
+  for (var i = 0; i < rows.length; i++) {
+    var dt = String(rows[i].date || '');
+    if (dt !== '' && dt >= start && dt <= today) items.push(rows[i]);
+  }
+  return { success: true, items: items };
 }
 
 // ── CRM helper: read all rows from a tab ──

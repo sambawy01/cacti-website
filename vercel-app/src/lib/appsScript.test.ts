@@ -3,7 +3,7 @@ import { placeOrder, setOrderStatusByToken, slaListActiveOrders, markSlaAlerted 
 import {
   getAvailabilitySummary, getOrdersList, getMenuList, getPantryList, getStockList,
   getCrmOrdersList, getContactsList, toggleMenuVisibility, togglePantryVisibility,
-  decideRequisition, logExpense,
+  decideRequisition, logExpense, getExpensesList,
 } from "./appsScript";
 
 const ORIG = { ...process.env };
@@ -172,6 +172,25 @@ describe("agent read clients", () => {
     expect(url).toContain("action=getCRMOrders");
     expect(url).toContain("password=secret");
     expect(url).not.toContain("range=");
+  });
+
+  it("getExpensesList is admin-gated and sends action=getExpenses + the range", async () => {
+    const spy = mockFetchOnce({ success: true, items: [{ amount_egp: 250, date: "2026-06-15", category: "produce" }] });
+    const r = await getExpensesList("today");
+    expect(r.success).toBe(true);
+    expect(r.items?.[0].amount_egp).toBe(250);
+    const url = spy.mock.calls[0][0] as string;
+    expect(url).toContain("action=getExpenses");
+    expect(url).toContain("password=secret");
+    expect(url).toContain("range=today");
+  });
+
+  it("getExpensesList forwards range=week", async () => {
+    const spy = mockFetchOnce({ success: true, items: [] });
+    await getExpensesList("week");
+    const url = spy.mock.calls[0][0] as string;
+    expect(url).toContain("action=getExpenses");
+    expect(url).toContain("range=week");
   });
 
   it("getContactsList reads rows under `items` (NOT `contacts`) and sends no q", async () => {

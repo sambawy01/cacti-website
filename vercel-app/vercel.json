@@ -1,5 +1,9 @@
 {
   "crons": [
-    { "path": "/api/cron/sla-check", "schedule": "* * * * *" }
+    { "path": "/api/cron/sla-check", "schedule": "* * * * *" },
+    { "path": "/api/cron/owner-digest", "schedule": "0 6 * * *" },
+    { "path": "/api/cron/owner-digest", "schedule": "0 7 * * *" },
+    { "path": "/api/cron/owner-digest", "schedule": "0 17 * * *" },
+    { "path": "/api/cron/owner-digest", "schedule": "0 18 * * *" }
   ]
 }

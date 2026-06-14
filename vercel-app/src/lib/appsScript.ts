@@ -255,6 +255,15 @@ export async function getContactsList(): Promise<{ success: boolean; items?: Con
   return appsScriptGet({ action: "getContacts", password: adminPassword() });
 }
 
+// getExpenses returns the Expenses tab rows under `items`, windowed server-side
+// by Cairo date for the requested range ('today' | 'week') — UNLIKE getCRMOrders
+// (which ignores range and returns the whole tab). amount_egp comes back numeric
+// for clean rows; callers coerce with Number() before summing. Admin-gated.
+export interface ExpenseItem { _rowIndex?: number; amount_egp: number | string; date: string; category?: string; note?: string; vendor?: string; }
+export async function getExpensesList(range: "today" | "week"): Promise<{ success: boolean; items?: ExpenseItem[]; error?: string }> {
+  return appsScriptGet({ action: "getExpenses", password: adminPassword(), range });
+}
+
 // ---- Mutate clients (always reached via the confirm gate) ----
 
 // adminToggleVisibility(rowIndex, status) writes `status` into the Menu sheet's

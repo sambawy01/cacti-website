@@ -176,6 +176,49 @@ export async function shouldAlertOwner(
   }
 }
 
+// --- Proactive-notification markers (cron) -----------------------------------
+//
+// Two tiny single-key blobs that throttle the proactive owner DMs sent from the
+// crons. Same private store / read-modify-write pattern as everything else here;
+// best effort — a read/write failure must never break a cron run.
+
+const PENDING_REMINDED_PATH = "telegram/pending-reminded.json";
+const DIGEST_SENT_PATH = "telegram/digest-sent.json";
+
+/** Re-remind the owner about pending-approval orders at most this often. */
+export const PENDING_REMINDER_COOLDOWN_MS = 60 * 60 * 1000;
+
+/**
+ * Epoch-ms of the last "N orders awaiting approval" reminder DM, or null if the
+ * owner has never been reminded (or the marker is unreadable — fail OPEN so a
+ * blip just lets the next reminder through rather than suppressing it forever).
+ */
+export async function getPendingRemindedAt(): Promise<number | null> {
+  const rec = await readJson<{ at?: number }>(PENDING_REMINDED_PATH);
+  return rec && typeof rec.at === "number" && Number.isFinite(rec.at) ? rec.at : null;
+}
+
+/** Record that the pending-approval reminder DM just went out. */
+export async function markPendingReminded(at: number = Date.now()): Promise<void> {
+  await writeJson(PENDING_REMINDED_PATH, { at });
+}
+
+/**
+ * Has the owner-digest for this slot key (`YYYY-MM-DD:slot`, Cairo date) already
+ * been sent? Only the LAST slot key is stored: morning and evening keys differ,
+ * and a new day's key differs from both, so one key is enough to dedup the
+ * current slot while never blocking the next one.
+ */
+export async function wasDigestSent(key: string): Promise<boolean> {
+  const rec = await readJson<{ key?: string }>(DIGEST_SENT_PATH);
+  return Boolean(rec && rec.key === key);
+}
+
+/** Record that the digest for this slot key just went out. */
+export async function markDigestSent(key: string): Promise<void> {
+  await writeJson(DIGEST_SENT_PATH, { key, at: new Date().toISOString() });
+}
+
 // --- Conversation memory -------------------------------------------------------
 
 export interface HistoryMessage {
