@@ -83,6 +83,17 @@ const DOC_NOUN_RE =
 const AR_GEN_VERB_RE = /(اكتب|اكتبي|جهز|جهّز|حضّر|حضر|اعمل|صيغ|صياغة|أنشئ|انشئ)/;
 const AR_DOC_NOUN_RE = /(خطاب|عرض|مقترح|مستند|وثيقة|تقرير|فاتورة|عقد|بيان)/;
 
+// A terminal fast-model text that reads like a bail/refusal ("I can't access
+// that", "I'm not able to", "please rephrase") rather than a real answer. When
+// this matches, the loop escalates the turn ONCE to the heavy model (see
+// runAgent) — the fast model often bails instead of calling a read tool.
+// Anchored on FIRST-PERSON inability so factual answers that merely contain
+// "can't"/"no access" ("the kitchen can't take orders after 8PM", "you can't go
+// wrong with the special") don't waste a heavy round-trip — only the model
+// bailing about ITSELF ("I can't access that", "I don't have a tool…") escalates.
+const REFUSAL_RE =
+  /\b(i\s+(can'?t|cannot)|i'?m\s+(not able|unable)|i\s+(don'?t|do not)\s+have\s+(access|a tool)|no access to|please rephrase)\b/i;
+
 /** Does this message ask the assistant to author a document / long-form piece? */
 export function isHeavyIntent(userText: string): boolean {
   const t = (userText || "").slice(0, 2000);
@@ -231,6 +242,9 @@ export async function runAgent(input: {
   // (latched) if the heavy call errors.
   const route = pickModel({ userText });
   let heavyDisabled = false;
+  // One-shot latch: at most ONE heavy-model escalation per runAgent when the
+  // fast model bails with a refusal instead of calling a tool.
+  let escalated = false;
 
   for (let round = 0; round <= MAX_TOOL_ROUNDS; round++) {
     const finalRound = round === MAX_TOOL_ROUNDS;
@@ -290,7 +304,50 @@ export async function runAgent(input: {
       }
     }
 
-    const toolCalls = reply.tool_calls ?? [];
+    let toolCalls = reply.tool_calls ?? [];
+
+    // --- Heavy-model escalation on a fast-model bail -------------------------
+    // The FAST model sometimes BAILS ("I can't access that", "please rephrase")
+    // on a terminal text turn instead of calling a read tool. When that happens
+    // — and only if THIS turn ran on fast, heavy is still available, and the
+    // deadline allows a fresh call — retry the whole turn ONCE on the heavy
+    // model before giving up. Bounded to one escalation per run (`escalated`).
+    // If the heavy retry returns tool_calls the loop just continues below (it
+    // can now act on them); if it returns text the terminal branch returns it.
+    // Never throws: on any escalation error we keep the original fast text.
+    // Skip on the final round: if heavy then returns tool_calls they can't run
+    // (the final round must return text), so the owner would get the empty-
+    // handed fallback instead of the fast reply — a downgrade. And gate on
+    // HEAVY_MIN_REMAINING_MS (not the looser DEADLINE_MIN_MODEL_MS) since this
+    // fires the slower HEAVY model — same threshold the per-round downgrade uses.
+    if (toolCalls.length === 0 && !finalRound && !useHeavy && !heavyDisabled && !escalated) {
+      const fastContent = (reply.content || "").trim();
+      const escalationRemaining = deadlineAt - Date.now();
+      if (
+        fastContent &&
+        REFUSAL_RE.test(fastContent) &&
+        escalationRemaining >= HEAVY_MIN_REMAINING_MS
+      ) {
+        escalated = true;
+        try {
+          const heavyReply = await callOllama(
+            messages,
+            heavyModel(),
+            Math.min(UPSTREAM_TIMEOUT_MS, escalationRemaining - REPLY_RESERVE_MS)
+          );
+          // Adopt the heavy result for the rest of this iteration.
+          reply = heavyReply;
+          toolCalls = heavyReply.tool_calls ?? [];
+        } catch (error) {
+          console.error(
+            "[agent] Heavy-model escalation failed; keeping fast text:",
+            error
+          );
+          // reply/toolCalls unchanged → the original fast text is returned below.
+        }
+      }
+    }
+
     if (toolCalls.length === 0 || finalRound) {
       const content = (reply.content || "").trim();
       const text =

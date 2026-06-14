@@ -65,6 +65,38 @@ describe("runAgent", () => {
     expect(fetchSpy).toHaveBeenCalledTimes(5);
   });
 
+  it("escalates to the heavy model when the fast model bails with a refusal", async () => {
+    // Round 1 (fast): a refusal text, no tool calls. Then the heavy retry: a real answer.
+    const fetchSpy = vi.spyOn(globalThis, "fetch")
+      .mockResolvedValueOnce(ollamaResponse({ message: { role: "assistant", content: "I can't access that." } }))
+      .mockResolvedValueOnce(ollamaResponse({ message: { role: "assistant", content: "You have 3 active orders." } }));
+    const out = await runAgent({ chatId: 1, userText: "orders I sent?", deadlineAt: Date.now() + 90_000 });
+    expect(out.kind).toBe("text");
+    if (out.kind === "text") expect(out.text).toContain("active orders");
+    // Two model calls: the fast bail + the heavy escalation.
+    expect(fetchSpy).toHaveBeenCalledTimes(2);
+    const body2 = JSON.parse(fetchSpy.mock.calls[1][1]!.body as string);
+    expect(body2.model).toMatch(/pro|heavy/i); // escalated to heavy
+  });
+
+  it("does NOT escalate when the fast model gives a real answer", async () => {
+    const fetchSpy = vi.spyOn(globalThis, "fetch")
+      .mockResolvedValueOnce(ollamaResponse({ message: { role: "assistant", content: "We're open 10AM-8PM." } }));
+    const out = await runAgent({ chatId: 1, userText: "hours?", deadlineAt: Date.now() + 90_000 });
+    expect(out.kind).toBe("text");
+    expect(fetchSpy).toHaveBeenCalledTimes(1); // no escalation
+  });
+
+  it("does NOT escalate on a FACTUAL 'can't' answer (first-person anchored regex)", async () => {
+    // "the kitchen can't take orders after 8PM" is a correct answer, not the
+    // model bailing about itself — must not trigger a wasted heavy round-trip.
+    const fetchSpy = vi.spyOn(globalThis, "fetch")
+      .mockResolvedValueOnce(ollamaResponse({ message: { role: "assistant", content: "The kitchen can't take orders after 8PM." } }));
+    const out = await runAgent({ chatId: 1, userText: "can we order at 9pm?", deadlineAt: Date.now() + 90_000 });
+    expect(out.kind).toBe("text");
+    expect(fetchSpy).toHaveBeenCalledTimes(1); // no escalation
+  });
+
   it("never throws to the caller when loadHistory fails — degrades to empty history", async () => {
     vi.mocked(loadHistory).mockRejectedValueOnce(new Error("blob down"));
     vi.spyOn(globalThis, "fetch").mockResolvedValueOnce(
