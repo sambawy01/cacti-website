@@ -37,6 +37,8 @@ vi.mock("@/lib/telegram", () => ({
   editMessageText: vi.fn(async () => ({ ok: true, status: 200 })),
   editMessageReplyMarkup: vi.fn(async () => ({ ok: true, status: 200 })),
   sendMessage: vi.fn(async () => ({ ok: true, status: 200 })),
+  getFile: vi.fn(async () => ({ ok: true, filePath: "voice/file_1.oga", fileSize: 10 })),
+  downloadFile: vi.fn(async () => new Uint8Array([1, 2, 3])),
 }));
 vi.mock("@/lib/loyverse", () => ({
   loyverseConfigured: vi.fn(() => true),
@@ -45,7 +47,41 @@ vi.mock("@/lib/loyverse", () => ({
     s === "2x Grilled Chicken (400 EGP)" ? [{ name: "Grilled Chicken", quantity: 2, price: 200 }] : []),
 }));
 
-import { POST } from "./route";
+// ── Owner-DM agent surface (new in Task 10) ──
+vi.mock("@/lib/assistant/agent", () => ({
+  runAgent: vi.fn(async () => ({ kind: "text", text: "Here is your answer." })),
+}));
+vi.mock("@/lib/assistant/state", () => ({
+  getOwnerChatId: vi.fn(async () => 777),
+  bindOwner: vi.fn(async () => {}),
+  takePendingAction: vi.fn(async () => ({
+    ok: true,
+    action: { tool: "order_delay", args: { token: "t", minutes: 15 }, summary: "Delay order t by 15 min" },
+  })),
+  retirePendingAction: vi.fn(async () => {}),
+  appendHistory: vi.fn(async () => {}),
+  appendAudit: vi.fn(async () => {}),
+  confirmCancelKeyboard: (id: string) => ({
+    inline_keyboard: [[
+      { text: "✅ Confirm", callback_data: `confirm:${id}` },
+      { text: "❌ Cancel", callback_data: `cancel:${id}` },
+    ]],
+  }),
+}));
+vi.mock("@/lib/assistant/tools", () => ({ executeTool: vi.fn(async () => "Delayed to 14:30.") }));
+vi.mock("@/lib/assistant/voice", () => ({
+  MAX_VOICE_SECONDS: 300,
+  MAX_VOICE_BYTES: 20 * 1024 * 1024,
+  transcribeVoice: vi.fn(async () => ({ ok: true, text: "what is on the menu" })),
+}));
+vi.mock("@/lib/assistant/vision", () => ({
+  analyzePhoto: vi.fn(async () => ({ kind: "reply", text: "That looks like a plate of food." })),
+}));
+vi.mock("@/lib/assistant/docs", () => ({
+  extractPdfText: vi.fn(async () => ({ ok: true, text: "PDF body text" })),
+}));
+
+import { POST, __resetSeenUpdatesForTest } from "./route";
 import { setOrderStatusByToken, getOrderStatus, delayOrder } from "@/lib/appsScript";
 import { answerCallbackQuery, editMessageText, editMessageReplyMarkup, sendMessage } from "@/lib/telegram";
 import { pushReceipt } from "@/lib/loyverse";
@@ -53,9 +89,12 @@ import { confirmationEmail, statusEmail, declineEmail, delayEmail, sendEmail } f
 
 const SECRET = "hook-secret";
 
+// Unique update_id per call so the in-memory dedupe (added in Task 10) never
+// collapses two distinct order-button taps issued within one test.
+let __updateSeq = 1000;
 function update(data: string) {
   return {
-    update_id: 1,
+    update_id: __updateSeq++,
     callback_query: { id: "cb1", data, message: { message_id: 55, chat: { id: 999 }, text: "NEW ORDER" } },
   };
 }
@@ -71,9 +110,11 @@ function req(body: unknown, secret = SECRET): Request {
 beforeEach(() => {
   vi.clearAllMocks();
   deferred.length = 0;
+  __resetSeenUpdatesForTest(); // clear the in-memory update_id dedupe between tests
   process.env.TELEGRAM_BOT_TOKEN = "tok";
   process.env.TELEGRAM_WEBHOOK_SECRET = SECRET;
   process.env.TELEGRAM_OWNER_CHAT_ID = "999";
+  process.env.ADMIN_PASS = "owner-pass";
   process.env.RESEND_API_KEY = "re_test";
   (sendEmail as any).mockResolvedValue({ ok: true });
 });
@@ -462,5 +503,138 @@ describe("POST /api/telegram/webhook — customer emails", () => {
     await flushAfter();
     expect(confirmationEmail).not.toHaveBeenCalled();
     expect(sendEmail).not.toHaveBeenCalled();
+  });
+});
+
+// ── Owner-DM agent routing (Task 10) ──
+const PENDING_ID = "11111111-1111-1111-1111-111111111111";
+
+function ownerDm(text: string) {
+  return {
+    update_id: __updateSeq++,
+    message: { message_id: 1, chat: { id: 777, type: "private" }, from: { id: 777 }, text },
+  };
+}
+function strangerDm(text: string) {
+  return {
+    update_id: __updateSeq++,
+    message: { message_id: 1, chat: { id: 999, type: "private" }, from: { id: 999 }, text },
+  };
+}
+function groupMsg(text: string) {
+  return {
+    update_id: __updateSeq++,
+    message: { message_id: 1, chat: { id: -100, type: "group" }, from: { id: 5 }, text },
+  };
+}
+
+describe("owner-DM agent routing", () => {
+  it("runs the agent for the bound owner's text and replies", async () => {
+    const res = await POST(req(ownerDm("any active orders?")));
+    expect(res.status).toBe(200);
+    await flushAfter();
+    const { runAgent } = await import("@/lib/assistant/agent");
+    expect(runAgent).toHaveBeenCalled();
+    expect(sendMessage).toHaveBeenCalled();
+  });
+
+  it("ignores group messages (never runs the agent)", async () => {
+    const { runAgent } = await import("@/lib/assistant/agent");
+    (runAgent as any).mockClear();
+    const res = await POST(req(groupMsg("delete everything")));
+    expect(res.status).toBe(200);
+    await flushAfter();
+    expect(runAgent).not.toHaveBeenCalled();
+  });
+
+  it("refuses a non-owner DM without running the agent", async () => {
+    const { runAgent } = await import("@/lib/assistant/agent");
+    (runAgent as any).mockClear();
+    const res = await POST(req(strangerDm("hi")));
+    expect(res.status).toBe(200);
+    await flushAfter();
+    expect(runAgent).not.toHaveBeenCalled();
+    expect(sendMessage).toHaveBeenCalled(); // generic refusal
+  });
+
+  it("a confirm tap executes the pending action exactly once", async () => {
+    const data = `confirm:${PENDING_ID}`;
+    const res = await POST(
+      req({ update_id: __updateSeq++, callback_query: { id: "c", data, message: { message_id: 9, chat: { id: 777 } } } }),
+    );
+    expect(res.status).toBe(200);
+    await flushAfter();
+    const { executeTool } = await import("@/lib/assistant/tools");
+    expect(executeTool).toHaveBeenCalledWith(
+      "order_delay",
+      { token: "t", minutes: 15 },
+      expect.objectContaining({ chatId: 777 }),
+    );
+    expect(executeTool).toHaveBeenCalledTimes(1);
+  });
+
+  it("a cancel tap retires the pending action and does not execute", async () => {
+    const { executeTool } = await import("@/lib/assistant/tools");
+    const { retirePendingAction } = await import("@/lib/assistant/state");
+    (executeTool as any).mockClear();
+    const data = `cancel:${PENDING_ID}`;
+    const res = await POST(
+      req({ update_id: __updateSeq++, callback_query: { id: "c", data, message: { message_id: 9, chat: { id: 777 } } } }),
+    );
+    expect(res.status).toBe(200);
+    await flushAfter();
+    expect(retirePendingAction).toHaveBeenCalledWith(PENDING_ID);
+    expect(executeTool).not.toHaveBeenCalled();
+  });
+
+  it("a confirm tap from a NON-owner chat is dropped (never executes)", async () => {
+    const { executeTool } = await import("@/lib/assistant/tools");
+    const { takePendingAction } = await import("@/lib/assistant/state");
+    (executeTool as any).mockClear();
+    (takePendingAction as any).mockClear();
+    const data = `confirm:${PENDING_ID}`;
+    // owner is 777 (state mock); this tap comes from chat 999.
+    const res = await POST(
+      req({ update_id: __updateSeq++, callback_query: { id: "c", data, message: { message_id: 9, chat: { id: 999 } } } }),
+    );
+    expect(res.status).toBe(200);
+    await flushAfter();
+    expect(takePendingAction).not.toHaveBeenCalled();
+    expect(executeTool).not.toHaveBeenCalled();
+  });
+
+  it("a confirm reply that the agent gates shows the Confirm/Cancel keyboard", async () => {
+    const { runAgent } = await import("@/lib/assistant/agent");
+    (runAgent as any).mockResolvedValueOnce({ kind: "confirm", text: "Delay order t by 15 min — confirm?", pendingId: PENDING_ID });
+    await POST(req(ownerDm("delay order t by 15")));
+    await flushAfter();
+    const lastCall = (sendMessage as any).mock.calls.at(-1);
+    expect(lastCall[2]).toBeDefined(); // keyboard arg
+    expect(lastCall[2].inline_keyboard.flat().some((b: any) => b.callback_data === `confirm:${PENDING_ID}`)).toBe(true);
+  });
+});
+
+describe("existing order buttons still work (not shadowed by confirm/cancel)", () => {
+  it("an approve tap still maps to setOrderStatusByToken(confirmed)", async () => {
+    await POST(req(update("approve:tok-xyz")));
+    expect(setOrderStatusByToken).toHaveBeenCalledWith("tok-xyz", "confirmed");
+  });
+
+  it("an order cancel:<token> tap still maps to setOrderStatusByToken(cancelled) — uuid gate doesn't shadow it", async () => {
+    await POST(req(update("cancel:tok-not-a-uuid")));
+    expect(setOrderStatusByToken).toHaveBeenCalledWith("tok-not-a-uuid", "cancelled");
+  });
+});
+
+describe("update_id dedupe", () => {
+  it("returns 200 and skips reprocessing a redelivered update_id", async () => {
+    const u = update("approve:tok-dedupe");
+    await POST(req(u));
+    expect(setOrderStatusByToken).toHaveBeenCalledTimes(1);
+    (setOrderStatusByToken as any).mockClear();
+    // Same update_id redelivered → deduped, no second processing.
+    const res = await POST(req(u));
+    expect(res.status).toBe(200);
+    expect(setOrderStatusByToken).not.toHaveBeenCalled();
   });
 });
