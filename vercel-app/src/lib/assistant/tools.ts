@@ -96,37 +96,37 @@ export const TOOLS: OllamaTool[] = [
   // ---- read ----
   tool(
     "orders_active",
-    "List today's ACTIVE orders (Cairo time): customer, status, delivery slot, summary. Read-only."
+    "Today's active orders (customer, status, delivery slot, summary). USE THIS whenever the owner asks anything about current/recent/pending orders, 'what's going out', 'orders I sent', or what's in progress. Read-only."
   ),
   tool(
     "order_lookup",
-    "Look up one order by its tracking token: customer, status, slot, date, total, summary. Read-only.",
+    "Look up ONE specific order by its tracking token (customer, status, slot, date, total, summary). Use when the owner names a particular order/token. Read-only.",
     { token: { type: "string", description: "Order tracking token" } },
     ["token"]
   ),
   tool(
     "capacity_today",
-    "Show today's kitchen capacity per delivery slot (orders left / items left). Read-only.",
+    "Today's kitchen capacity per delivery slot (orders/items left). USE THIS for 'how busy are we', 'any slots left', 'can we take more orders', or capacity at a given time. Read-only.",
     { slot: { type: "string", description: "Optional HH:mm slot to filter to one slot" } }
   ),
   tool(
     "revenue_summary",
-    "Total revenue today or this week from CRM orders (excludes declined/cancelled). Read-only.",
+    "Total revenue today or this week (CRM orders, excludes declined/cancelled). USE THIS for any money question: sales, revenue, income, 'how much did we make', takings. Read-only.",
     { period: { type: "string", enum: ["today", "week"], description: "Time window (default today)" } }
   ),
   tool(
     "customer_lookup",
-    "Find a contact by name or phone: name, phone, email. Read-only.",
+    "Find a customer by name or phone (name, phone, email). USE THIS for 'who is', 'find the customer', 'look up <name/number>', customer details. Read-only.",
     { query: { type: "string", description: "Name or phone fragment to search for" } },
     ["query"]
   ),
   tool(
     "menu_list",
-    "List menu items with their visibility (hidden = currently off the menu). Read-only."
+    "The menu items and their visibility (hidden = currently off the menu). USE THIS for 'what's on the menu', 'is X available', 'which items are live/hidden'. Read-only."
   ),
   tool(
     "stock_list",
-    "List kitchen stock quantities and pantry items with visibility. Read-only."
+    "Kitchen stock quantities and pantry items with visibility. USE THIS for 'do we have', 'how much <ingredient> is left', 'what's low/out of stock'. Read-only."
   ),
   // ---- mutate ----
   tool(

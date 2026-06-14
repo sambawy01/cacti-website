@@ -9,6 +9,10 @@ describe("buildSystemPrompt", () => {
     expect(p).toMatch(/confirm/i); // mutating tools need a tap
     expect(p).toMatch(/plain text/i); // no markdown
     expect(p).toMatch(/Arabic|English/i); // bilingual
+    // The "prefer a tool over refusing" reasoning principle + intent→tool mapping.
+    expect(p).toMatch(/before you answer/i);
+    expect(p).toMatch(/orders_active/);
+    expect(p).toMatch(/revenue_summary/);
   });
 
   it("renders the Cairo date even when the instant is a UTC day earlier", () => {
