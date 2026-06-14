@@ -111,6 +111,17 @@ describe("POST /api/telegram/webhook", () => {
     }));
   });
 
+  it("a 'preparing' advance refreshes the 🎯 target line on the ticket", async () => {
+    // The tap moves the order to preparing; the edited ticket should carry the
+    // new stage's target and drop any prior stage's 🎯 line.
+    (setOrderStatusByToken as any).mockResolvedValueOnce({ success: true, status: "preparing", previousStatus: "confirmed" });
+    await POST(req(update("preparing:tok-p")));
+    const editText = (editMessageText as any).mock.calls[0][2] as string;
+    expect(editText).toContain("🎯 Out for delivery by");
+    // the old confirmed-stage target line must not linger
+    expect(editText).not.toContain("Start preparing by");
+  });
+
   it("does NOT push to Loyverse for non-approve transitions (e.g. preparing)", async () => {
     await POST(req(update("preparing:t")));
     expect(pushReceipt).not.toHaveBeenCalled();

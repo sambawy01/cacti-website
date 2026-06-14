@@ -4,6 +4,7 @@ import { setOrderStatusByToken, getOrderStatus, delayOrder, type OrderStatus } f
 import { answerCallbackQuery, editMessageText, editMessageReplyMarkup, sendMessage, type InlineKeyboard } from "@/lib/telegram";
 import { actionToStatus, keyboardForStatus, delayKeyboard, delayActionMinutes } from "@/lib/orderMessage";
 import { loyverseConfigured, pushReceipt, parseOrderSummary, type LoyverseOrder } from "@/lib/loyverse";
+import { isActiveStatus, targetLine } from "@/lib/sla";
 import { confirmationEmail, statusEmail, declineEmail, delayEmail, sendEmail, type StatusEmailStatus } from "@/lib/email";
 import type { PaymentMethod } from "@/lib/validation";
 
@@ -294,8 +295,18 @@ export async function POST(request: Request): Promise<Response> {
   try {
     const r = await setOrderStatusByToken(token, status);
     if (r.success) {
-      const original = cb.message.text || "Order";
-      await editMessageText(cb.message.chat.id, cb.message.message_id, `${original}\n\n— ${STATUS_LABEL[status] || status}`, keyboardForStatus(status, token));
+      const base = (cb.message.text || "Order")
+        .split("\n")
+        .filter((line) => !line.startsWith("🎯"))
+        .join("\n")
+        .replace(/\n+$/, "");
+      const tgt = isActiveStatus(status) ? `\n${targetLine(status, new Date())}` : "";
+      await editMessageText(
+        cb.message.chat.id,
+        cb.message.message_id,
+        `${base}\n\n— ${STATUS_LABEL[status] || status}${tgt}`,
+        keyboardForStatus(status, token),
+      );
       await answerCallbackQuery(cb.id, STATUS_LABEL[status] || status);
 
       // Customer email via Vercel/Resend (deferred, non-fatal). preparing /
