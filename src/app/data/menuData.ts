@@ -36,7 +36,7 @@ export const MENU_ITEMS: MenuItem[] = [
     description: 'Yellowfin tuna, ponzu, sesame, micro herbs',
     price: 360,
     category: 'Raw Bar',
-    image: img('Tonya Tonnato'),
+    image: '/dish-tuna-tonnato.jpg',
     dietary: ['Seafood'],
     status: 'available',
     section: 'Restaurant',
