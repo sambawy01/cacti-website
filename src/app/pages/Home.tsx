@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { Button } from '../components/ui/button';
 import { Link } from 'react-router-dom';
 import { motion } from 'motion/react';
@@ -6,16 +6,24 @@ import { useCart } from '../context/CartContext';
 import { useMenuData } from '../data/useMenuData';
 import { Music, Sunset, Wine, Plus, ChevronDown, ArrowRight } from 'lucide-react';
 
+const HERO_IMAGES = [
+  '/hero-1.jpg',
+  '/hero-2.jpg',
+  '/hero-3.jpg',
+  '/hero-4.jpg',
+  '/hero-5.jpg',
+];
+
 const STORY_IMG = 'https://placehold.co/800x1000/0a4d4d/f0e6d2?text=Mediterranean+Beach';
 const CTA_BG = 'https://placehold.co/1920x600/0a0a0a/0a4d4d?text=Reserve+Your+Table';
 
 const GALLERY_IMAGES = [
-  { label: 'Beach View', span: 'md:row-span-2', url: 'https://placehold.co/600x800/0a4d4d/ffffff?text=Beach+View' },
-  { label: 'Fresh Catch', span: '', url: 'https://placehold.co/600x400/0a4d4d/f0e6d2?text=Fresh+Catch' },
-  { label: 'Cocktails', span: '', url: 'https://placehold.co/600x400/0a4d4d/ffffff?text=Cocktails' },
-  { label: 'Sunset', span: 'md:row-span-2', url: 'https://placehold.co/600x800/0a4d4d/f0e6d2?text=Sunset' },
-  { label: 'Interior', span: '', url: 'https://placehold.co/600x400/0a4d4d/ffffff?text=Interior' },
-  { label: 'Seafood Platter', span: '', url: 'https://placehold.co/600x400/0a4d4d/f0e6d2?text=Seafood+Platter' },
+  { label: 'The Lounge', span: 'md:row-span-2', url: '/hero-1.jpg' },
+  { label: 'Sunset Deck', span: '', url: '/hero-2.jpg' },
+  { label: 'The Bar', span: '', url: '/hero-3.jpg' },
+  { label: 'Beachfront', span: 'md:row-span-2', url: '/hero-4.jpg' },
+  { label: 'Interior', span: '', url: '/hero-5.jpg' },
+  { label: 'The Lounge', span: '', url: '/hero-3.jpg' },
 ];
 
 const WEEKLY_EVENTS = [
@@ -31,6 +39,15 @@ const WEEKLY_EVENTS = [
 export function HomePage() {
   const { addItem } = useCart();
   const { menuItems } = useMenuData();
+  const [heroIndex, setHeroIndex] = useState(0);
+
+  // Rotate hero images every 5 seconds
+  useEffect(() => {
+    const interval = setInterval(() => {
+      setHeroIndex((prev) => (prev + 1) % HERO_IMAGES.length);
+    }, 5000);
+    return () => clearInterval(interval);
+  }, []);
 
   const signatureCategories = ['Raw Bar', 'Hot Mezze', 'Seafood Mains'];
   const dishes = menuItems
@@ -50,47 +67,31 @@ export function HomePage() {
     <div className="w-full bg-[#f5f5f0]">
       {/* ============ 1. HERO — Futuristic with logo + motion ============ */}
       <section className="relative h-screen min-h-[600px] flex items-center justify-center overflow-hidden bg-[#0a0a0a]">
-        {/* Animated floating gradient orbs */}
-        <motion.div
-          animate={{
-            x: [0, 120, 0],
-            y: [0, -60, 0],
-            scale: [1, 1.3, 1],
-          }}
-          transition={{ duration: 20, repeat: Infinity, ease: 'easeInOut' }}
-          className="absolute top-0 left-0 w-[500px] h-[500px] bg-[#0a4d4d] rounded-full blur-[150px] opacity-50"
-        />
-        <motion.div
-          animate={{
-            x: [0, -100, 0],
-            y: [0, 80, 0],
-            scale: [1, 1.4, 1],
-          }}
-          transition={{ duration: 25, repeat: Infinity, ease: 'easeInOut' }}
-          className="absolute bottom-0 right-0 w-[500px] h-[500px] bg-[#06b6d4] rounded-full blur-[150px] opacity-30"
-        />
-        <motion.div
-          animate={{
-            x: [0, 60, 0],
-            y: [0, 40, 0],
-            scale: [1, 1.2, 1],
-            opacity: [0.15, 0.3, 0.15],
-          }}
-          transition={{ duration: 15, repeat: Infinity, ease: 'easeInOut' }}
-          className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[400px] h-[400px] bg-[#f0e6d2] rounded-full blur-[180px]"
-        />
+        {/* Rotating hero images with crossfade + Ken Burns zoom */}
+        {HERO_IMAGES.map((src, i) => (
+          <motion.div
+            key={src}
+            className="absolute inset-0"
+            initial={{ opacity: 0 }}
+            animate={{
+              opacity: i === heroIndex ? 1 : 0,
+              scale: i === heroIndex ? 1.1 : 1,
+            }}
+            transition={{
+              opacity: { duration: 1.5, ease: 'easeInOut' },
+              scale: { duration: 6, ease: 'easeOut' },
+            }}
+          >
+            <img
+              src={src}
+              alt="Cacti Beach Restaurant"
+              className="w-full h-full object-cover"
+            />
+          </motion.div>
+        ))}
 
-        {/* Subtle grid overlay for futuristic feel */}
-        <div
-          className="absolute inset-0 opacity-[0.03]"
-          style={{
-            backgroundImage: `linear-gradient(rgba(255,255,255,0.5) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,0.5) 1px, transparent 1px)`,
-            backgroundSize: '60px 60px',
-          }}
-        />
-
-        {/* Gradient vignette */}
-        <div className="absolute inset-0 bg-gradient-to-b from-[#0a0a0a]/30 via-transparent to-[#0a0a0a]" />
+        {/* Dark gradient overlay for text readability */}
+        <div className="absolute inset-0 bg-gradient-to-b from-[#0a0a0a]/40 via-[#0a0a0a]/30 to-[#0a0a0a]" />
 
         {/* Content */}
         <div className="relative z-10 text-center px-4 max-w-4xl">
