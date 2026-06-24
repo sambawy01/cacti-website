@@ -51,17 +51,7 @@ const UPCOMING_EVENTS = [
     color: '#0a4d4d',
     featured: true,
   },
-  {
-    id: 'white-party',
-    title: 'Saturday White Party',
-    icon: Moon,
-    category: 'Weekly',
-    schedule: 'Every Saturday',
-    time: '7:00 PM - 2:00 AM',
-    description: 'Dress in white. Sunset cocktails, house beats, and the most stylish night of the week. The beach, the music, the people.',
-    highlights: ['Dress code: white', 'House & disco', 'Best night of the week'],
-    color: '#06b6d4',
-  },
+
   {
     id: 'full-moon',
     title: 'Full Moon Sessions',

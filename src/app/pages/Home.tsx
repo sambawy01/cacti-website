@@ -25,7 +25,7 @@ const WEEKLY_EVENTS = [
   { day: 'Wednesday', theme: 'Cacti Sunset Session', desc: 'Our signature DJ night from golden hour till late.' },
   { day: 'Thursday', theme: 'Throwback Thursday', desc: 'Classic hits, vintage cocktails, barefoot dancing.' },
   { day: 'Friday', theme: 'Friday Fiesta', desc: 'Latin rhythms, mezcal cocktails, and ceviche bar.' },
-  { day: 'Saturday', theme: 'Saturday White Party', desc: 'Dress in white. Sunset cocktails and house beats.' },
+  { day: 'Saturday', theme: 'Beach Beats', desc: 'Local DJs, sunset cocktails, and dancing on the sand till late.' },
 ];
 
 export function HomePage() {
