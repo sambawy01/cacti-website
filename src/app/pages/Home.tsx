@@ -12,6 +12,7 @@ const HERO_IMAGES = [
   '/hero-3.jpg',
   '/hero-4.jpg',
   '/hero-5.jpg',
+  '/hero-6.jpg',
 ];
 
 const STORY_IMG = 'https://placehold.co/800x1000/0a4d4d/f0e6d2?text=Mediterranean+Beach';
@@ -22,7 +23,7 @@ const GALLERY_IMAGES = [
   { label: 'Sunset Deck', span: '', url: '/hero-2.jpg' },
   { label: 'The Bar', span: '', url: '/hero-3.jpg' },
   { label: 'Beachfront', span: 'md:row-span-2', url: '/hero-4.jpg' },
-  { label: 'Interior', span: '', url: '/hero-5.jpg' },
+  { label: 'Bar Counter', span: '', url: '/hero-6.jpg' },
   { label: 'The Lounge', span: '', url: '/hero-3.jpg' },
 ];
 
