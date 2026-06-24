@@ -227,8 +227,8 @@ export function HomePage() {
                 transition={{ duration: 0.5, delay: 0.3 }}
                 className="absolute -bottom-6 -right-6 bg-[#0a4d4d] text-[#f0e6d2] px-6 py-4 rounded-2xl shadow-xl hidden md:block"
               >
-                <p className="font-serif text-3xl font-bold leading-none">70%</p>
-                <p className="text-xs uppercase tracking-wider mt-1">Seafood</p>
+                <p className="font-serif text-3xl font-bold leading-none">Greek</p>
+                <p className="text-xs uppercase tracking-wider mt-1">Led Kitchen</p>
               </motion.div>
             </motion.div>
 
@@ -245,7 +245,7 @@ export function HomePage() {
               <p className="text-gray-600 text-lg leading-relaxed mb-5">
                 Cacti is a beachfront restaurant in Marsa Baghush on Egypt's North Coast, where the desert
                 landscape meets the crystal waters of the Mediterranean. Our kitchen is Greek-led and
-                sea-focused — <span className="text-[#0a4d4d] font-semibold">70% seafood, 30% international</span> —
+                sea-focused — <span className="text-[#0a4d4d] font-semibold">fresh catch daily, Greek-led, charcoal-grilled</span> —
                 built around the fresh catch landed daily by local fishermen.
               </p>
               <p className="text-gray-600 text-lg leading-relaxed mb-8">
