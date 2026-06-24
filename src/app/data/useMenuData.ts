@@ -42,11 +42,9 @@ function csvToMenuItems(csv: string): MenuItem[] {
 
   return rows.slice(1).map((row): MenuItem | null => {
         try {
-                // Check 'hidden' column first (sheet uses "hidden" not "status")
           const hiddenVal = (row[col('hidden')] || '').toLowerCase().trim();
                 if (hiddenVal === 'hidden' || hiddenVal === 'true' || hiddenVal === 'yes') return null;
 
-          // Fall back to 'status' column if it exists
           const status = (row[col('status')] || 'available').toLowerCase().trim();
                 if (status === 'hidden') return null;
 
@@ -59,7 +57,7 @@ function csvToMenuItems(csv: string): MenuItem[] {
                 if (!row[col('name')] || isNaN(price)) return null;
 
           const sectionVal = (row[col('section')] || '').trim();
-          const validSections = ['Restaurant', 'Beach Bar', 'Bar'];
+          const validSections = ['Restaurant', 'Beach Bar', 'Bar', 'Kids'];
           const section = (validSections.includes(sectionVal)
                   ? sectionVal
                   : undefined) as MenuItem['section'];
@@ -84,14 +82,15 @@ function csvToMenuItems(csv: string): MenuItem[] {
 }
 
 export function useMenuData() {
-    const [menuItems, setMenuItems] = useState<MenuItem[]>([]);
-    const [loading, setLoading] = useState(!!SHEET_CSV_URL);
+    // Use MENU_ITEMS from menuData.ts as the primary source
+    // Try Google Sheet as override, fall back to local data
+    const [menuItems, setMenuItems] = useState<MenuItem[]>(MENU_ITEMS);
+    const [loading, setLoading] = useState(false);
     const [error, setError] = useState<string | null>(null);
     const [source, setSource] = useState<'sheet' | 'fallback'>('fallback');
 
   useEffect(() => {
         if (!SHEET_CSV_URL) {
-                setLoading(false);
                 return;
         }
 
@@ -104,19 +103,13 @@ export function useMenuData() {
                                   const csv = await response.text();
                                   const items = csvToMenuItems(csv);
 
-                          if (!cancelled) {
-                                      if (items.length > 0) {
-                                                    setMenuItems(items);
-                                                    setSource('sheet');
-                                      } else {
-                                                    setError('Sheet returned no valid items');
-                                      }
-                                      setLoading(false);
+                          if (!cancelled && items.length > 0) {
+                                    setMenuItems(items);
+                                    setSource('sheet');
                           }
                         } catch (err) {
                                   if (!cancelled) {
-                                              setError(`Fetch failed: ${err}`);
-                                              setLoading(false);
+                                              setError(`Sheet fetch failed, using local data`);
                                   }
                         }
                 }

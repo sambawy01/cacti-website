@@ -6,38 +6,8 @@ import { useCart } from '../context/CartContext';
 import { useMenuData } from '../data/useMenuData';
 import type { MenuItem } from '../data/menuData';
 
-const SECTIONS = ['Restaurant', 'Beach Bar', 'Bar'] as const;
+const SECTIONS = ['Restaurant', 'Beach Bar', 'Bar', 'Kids'] as const;
 type Section = (typeof SECTIONS)[number];
-
-const SECTION_PLACEHOLDER: Record<Section, MenuItem[]> = {
-  Restaurant: [
-    { id: 'pr1', name: 'Oysters on the Half Shell', description: 'Fresh Mediterranean oysters, mignonette, lemon.', price: 320, category: 'Raw Bar', image: 'https://placehold.co/400x300/0a4d4d/f0e6d2?text=Oysters', status: 'available', section: 'Restaurant' },
-    { id: 'pr2', name: 'Tuna Tartare', description: 'Yellowfin tuna, avocado, sesame, ponzu.', price: 280, category: 'Raw Bar', image: 'https://placehold.co/400x300/0a4d4d/f0e6d2?text=Tuna+Tartare', status: 'available', section: 'Restaurant' },
-    { id: 'pr3', name: 'Grilled Octopus', description: 'Charcoal octopus, fava puree, capers.', price: 340, category: 'Hot Mezze', image: 'https://placehold.co/400x300/0a4d4d/f0e6d2?text=Octopus', status: 'available', section: 'Restaurant' },
-    { id: 'pr4', name: 'Calamari Fritti', description: 'Fried calamari, lemon, smoked aioli.', price: 220, category: 'Hot Mezze', image: 'https://placehold.co/400x300/0a4d4d/f0e6d2?text=Calamari', status: 'available', section: 'Restaurant' },
-    { id: 'pr5', name: 'Whole Sea Bream', description: 'Grilled sea bream, ladolemono, wild greens.', price: 450, category: 'Seafood Mains', image: 'https://placehold.co/400x300/0a4d4d/f0e6d2?text=Sea+Bream', status: 'available', section: 'Restaurant' },
-    { id: 'pr6', name: 'Lobster Pasta', description: 'Lobster, linguine, cherry tomatoes, white wine.', price: 520, category: 'Seafood Mains', image: 'https://placehold.co/400x300/0a4d4d/f0e6d2?text=Lobster', status: 'limited', section: 'Restaurant' },
-    { id: 'pr7', name: 'Greek Salad', description: 'Tomato, cucumber, feta, olives, oregano.', price: 160, category: 'Cold Mezze', image: 'https://placehold.co/400x300/0a4d4d/f0e6d2?text=Greek+Salad', status: 'available', section: 'Restaurant' },
-    { id: 'pr8', name: 'Tzatziki & Pita', description: 'Yogurt, cucumber, garlic, dill, warm pita.', price: 90, category: 'Cold Mezze', image: 'https://placehold.co/400x300/0a4d4d/f0e6d2?text=Tzatziki', status: 'available', section: 'Restaurant' },
-    { id: 'pr9', name: 'Seafood Platter', description: 'Lobster, prawns, calamari, mussels, oysters.', price: 890, category: 'Seafood Mains', image: 'https://placehold.co/400x300/0a4d4d/f0e6d2?text=Platter', status: 'sold_out', section: 'Restaurant' },
-  ],
-  'Beach Bar': [
-    { id: 'pb1', name: 'Cacti Club Sandwich', description: 'Chicken, bacon, egg, lettuce, triple-decker toast.', price: 180, category: 'Sandwiches', image: 'https://placehold.co/400x300/0a4d4d/f0e6d2?text=Club', status: 'available', section: 'Beach Bar' },
-    { id: 'pb2', name: 'Beach Burger', description: 'Wagyu patty, cheddar, onion, house sauce.', price: 240, category: 'Burgers', image: 'https://placehold.co/400x300/0a4d4d/f0e6d2?text=Burger', status: 'available', section: 'Beach Bar' },
-    { id: 'pb3', name: 'Halloumi Wrap', description: 'Grilled halloumi, peppers, tzatziki, rocket.', price: 150, category: 'Wraps', image: 'https://placehold.co/400x300/0a4d4d/f0e6d2?text=Wrap', status: 'available', section: 'Beach Bar' },
-    { id: 'pb4', name: 'Shrimp Basket', description: 'Crispy shrimp, fries, cocktail sauce.', price: 260, category: 'Snacks', image: 'https://placehold.co/400x300/0a4d4d/f0e6d2?text=Shrimp', status: 'available', section: 'Beach Bar' },
-    { id: 'pb5', name: 'Loaded Fries', description: 'Fries, feta, oregano, truffle oil.', price: 120, category: 'Snacks', image: 'https://placehold.co/400x300/0a4d4d/f0e6d2?text=Fries', status: 'available', section: 'Beach Bar' },
-    { id: 'pb6', name: 'Watermelon Feta Salad', description: 'Watermelon, feta, mint, balsamic glaze.', price: 140, category: 'Salads', image: 'https://placehold.co/400x300/0a4d4d/f0e6d2?text=Salad', status: 'available', section: 'Beach Bar' },
-  ],
-  Bar: [
-    { id: 'pc1', name: 'Cacti Sunset', description: 'Tequila, blood orange, lime, agave, sea salt.', price: 180, category: 'Signature Cocktails', image: 'https://placehold.co/400x300/0a4d4d/f0e6d2?text=Sunset', status: 'available', section: 'Bar' },
-    { id: 'pc2', name: 'Aegean Spritz', description: 'Ouzo, prosecco, soda, cucumber, mint.', price: 190, category: 'Signature Cocktails', image: 'https://placehold.co/400x300/0a4d4d/f0e6d2?text=Spritz', status: 'available', section: 'Bar' },
-    { id: 'pc3', name: 'Mediterranean Negroni', description: 'Gin, campari, vermouth, olive brine, rosemary.', price: 200, category: 'Cocktails', image: 'https://placehold.co/400x300/0a4d4d/f0e6d2?text=Negroni', status: 'available', section: 'Bar' },
-    { id: 'pc4', name: 'Fresh Lemonade', description: 'Lemon, mint, cucumber, agave.', price: 80, category: 'Non-Alcoholic', image: 'https://placehold.co/400x300/0a4d4d/f0e6d2?text=Lemonade', status: 'available', section: 'Bar' },
-    { id: 'pc5', name: 'Assyrtiko Glass', description: 'Crisp white from Santorini, mineral, citrus.', price: 150, category: 'Wine', image: 'https://placehold.co/400x300/0a4d4d/f0e6d2?text=Wine', status: 'available', section: 'Bar' },
-    { id: 'pc6', name: 'Cacti Margarita', description: 'Mezcal, lime, cactus pear, chili salt.', price: 185, category: 'Signature Cocktails', image: 'https://placehold.co/400x300/0a4d4d/f0e6d2?text=Margarita', status: 'limited', section: 'Bar' },
-  ],
-};
 
 export function MenuPage() {
   const [activeSection, setActiveSection] = useState<Section>('Restaurant');
@@ -49,7 +19,7 @@ export function MenuPage() {
   // Items for the current section: use live data if it has section field, else fallback
   const sectionItems = useMemo(() => {
     const live = menuItems.filter((i) => i.section === activeSection);
-    return live.length > 0 ? live : SECTION_PLACEHOLDER[activeSection];
+    return live.length > 0 ? live : [];
   }, [menuItems, activeSection]);
 
   // Categories for current section
