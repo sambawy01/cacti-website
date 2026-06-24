@@ -71,27 +71,19 @@ export function HomePage() {
         <div className="absolute inset-0 bg-gradient-to-b from-transparent via-[#0a0a0a]/40 to-[#0a0a0a]" />
 
         <div className="relative z-10 text-center px-4 max-w-4xl">
-          <motion.h1
-            initial={{ opacity: 0, y: 30 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.8, delay: 0.2 }}
-            className="font-serif text-7xl md:text-9xl font-bold text-white tracking-tight leading-none"
-          >
-            CACTI
-          </motion.h1>
-          <motion.p
+          <motion.img
+            src="/cacti-logo-full-white.png"
+            alt="Cacti"
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.8, delay: 0.5 }}
-            className="mt-4 text-xl md:text-3xl font-light text-[#f0e6d2] tracking-wide"
-          >
-            Sea. Sun. Cacti.
-          </motion.p>
+            transition={{ duration: 0.8, delay: 0.1 }}
+            className="mx-auto w-48 md:w-64 h-auto mb-2"
+          />
           <motion.p
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             transition={{ duration: 0.8, delay: 0.8 }}
-            className="mt-3 text-sm md:text-base text-white/70 uppercase tracking-[0.25em]"
+            className="mt-4 text-sm md:text-base text-white/70 uppercase tracking-[0.25em]"
           >
             Mediterranean Beach Restaurant &amp; Bar &nbsp;|&nbsp; Marsa Baghush, North Coast
           </motion.p>

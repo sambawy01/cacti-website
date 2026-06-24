@@ -31,9 +31,9 @@ function LayoutContent() {
           {/* Logo */}
           <Link to="/" className="flex items-center gap-2 group">
             <img
-              src="/cacti-logo-header.png"
+              src="/cacti-logo-full.png"
               alt="Cacti"
-              className="h-14 w-auto object-contain transition-transform group-hover:scale-105"
+              className="h-16 md:h-20 w-auto object-contain transition-transform group-hover:scale-105"
             />
           </Link>
 
