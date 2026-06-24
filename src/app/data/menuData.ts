@@ -47,7 +47,7 @@ export const MENU_ITEMS: MenuItem[] = [
     description: 'Red Sea prawns, lime, shallot, avocado, chili, coriander — chilled bowl',
     price: 380,
     category: 'Raw Bar',
-    image: img('Garides Ceviche'),
+    image: '/dish-prawn-ceviche.jpg',
     dietary: ['Seafood', 'Gluten-Free'],
     status: 'available',
     section: 'Restaurant',
