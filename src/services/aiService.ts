@@ -90,8 +90,8 @@ export async function streamChat(
   }
 }
 
-const SESSION_KEY = 'bistro-ai-session-id';
-const ACTIVITY_KEY = 'bistro-ai-last-activity';
+const SESSION_KEY = 'cacti-ai-session-id';
+const ACTIVITY_KEY = 'cacti-ai-last-activity';
 const EXPIRY_MS = 24 * 60 * 60 * 1000; // 24 hours
 
 function checkSessionExpiry(): void {
@@ -100,7 +100,7 @@ function checkSessionExpiry(): void {
     const keysToRemove: string[] = [];
     for (let i = 0; i < localStorage.length; i++) {
       const key = localStorage.key(i);
-      if (key?.startsWith('bistro-ai-')) keysToRemove.push(key);
+      if (key?.startsWith('cacti-ai-')) keysToRemove.push(key);
     }
     keysToRemove.forEach((k) => localStorage.removeItem(k));
   }
@@ -124,7 +124,7 @@ export function getSessionId(): string {
 export function checkClientRateLimit(mode: 'chat' | 'plan-builder'): boolean {
   checkSessionExpiry();
   const sessionId = getSessionId();
-  const key = `bistro-ai-count-${mode}-${sessionId}`;
+  const key = `cacti-ai-count-${mode}-${sessionId}`;
   const MAX = 20;
 
   const count = parseInt(localStorage.getItem(key) || '0');
@@ -136,13 +136,13 @@ export function checkClientRateLimit(mode: 'chat' | 'plan-builder'): boolean {
 }
 
 export function saveMessages(mode: 'chat' | 'plan-builder', messages: Array<{ role: string; content: string }>): void {
-  localStorage.setItem(`bistro-ai-messages-${mode}`, JSON.stringify(messages));
+  localStorage.setItem(`cacti-ai-messages-${mode}`, JSON.stringify(messages));
   touchSession();
 }
 
 export function loadMessages(mode: 'chat' | 'plan-builder'): Array<{ role: string; content: string }> | null {
   checkSessionExpiry();
-  const stored = localStorage.getItem(`bistro-ai-messages-${mode}`);
+  const stored = localStorage.getItem(`cacti-ai-messages-${mode}`);
   if (!stored) return null;
   try {
     return JSON.parse(stored);
