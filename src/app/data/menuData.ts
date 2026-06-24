@@ -25,7 +25,7 @@ export const MENU_ITEMS: MenuItem[] = [
     description: 'Thinly sliced sea bass, Santorini capers, blood orange, Cretan olive oil, sea salt',
     price: 340,
     category: 'Raw Bar',
-    image: img('Lavraki Crudo'),
+    image: '/dish-seabass-crudo.jpg',
     dietary: ['Seafood', 'Gluten-Free'],
     status: 'available',
     section: 'Restaurant',
