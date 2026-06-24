@@ -69,7 +69,7 @@ export const MENU_ITEMS: MenuItem[] = [
     description: 'Red mullet, blood orange, fennel, olive oil, chili — chilled plate',
     price: 320,
     category: 'Raw Bar',
-    image: img('Red Mullet Crudo'),
+    image: '/dish-red-mullet-crudo.jpg',
     dietary: ['Seafood', 'Gluten-Free'],
     status: 'available',
     section: 'Restaurant',
