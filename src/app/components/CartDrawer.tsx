@@ -160,7 +160,7 @@ export function CartDrawer() {
             animate={{ x: 0 }}
             exit={{ x: '100%' }}
             transition={{ type: 'spring', damping: 25, stiffness: 200 }}
-            className="fixed right-0 top-0 h-full w-full max-w-md bg-white z-50 shadow-2xl flex flex-col"
+            className="fixed right-0 top-0 h-full w-full sm:max-w-md bg-white z-50 shadow-2xl flex flex-col"
           >
             <div className="p-6 border-b flex items-center justify-between bg-[#f5f5f0]">
               <h2 className="font-montserrat font-bold text-xl flex items-center gap-2">
