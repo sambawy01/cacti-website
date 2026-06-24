@@ -58,6 +58,12 @@ function csvToMenuItems(csv: string): MenuItem[] {
           const price = Number(row[col('price')]);
                 if (!row[col('name')] || isNaN(price)) return null;
 
+          const sectionVal = (row[col('section')] || '').trim();
+          const validSections = ['Restaurant', 'Beach Bar', 'Bar'];
+          const section = (validSections.includes(sectionVal)
+                  ? sectionVal
+                  : undefined) as MenuItem['section'];
+
           return {
                     id: row[col('id')] || String(Math.random()),
                     name: row[col('name')] || '',
@@ -69,6 +75,7 @@ function csvToMenuItems(csv: string): MenuItem[] {
                     status: (['available', 'limited', 'sold_out'].includes(status)
                                        ? status
                                        : 'available') as MenuItem['status'],
+                    section,
           };
         } catch {
                 return null;

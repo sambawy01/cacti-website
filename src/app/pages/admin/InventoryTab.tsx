@@ -190,7 +190,7 @@ export function InventoryTab({ l, role }: { l: AdminLang; role: Role }) {
               key={key}
               onClick={() => handleSort(key)}
               className={`shrink-0 px-3 py-1.5 rounded-full text-xs font-medium border transition-colors ${
-                sortKey === key ? 'bg-[#2C3E50] text-white border-[#2C3E50]' : 'bg-white text-muted-foreground border-input'
+                sortKey === key ? 'bg-[#0a0a0a] text-white border-[#0a0a0a]' : 'bg-white text-muted-foreground border-input'
               }`}
             >
               {key === 'name' ? tr('name') : key === 'category' ? tr('category') : key === 'qty_on_hand' ? tr('inv_qty_on_hand') : tr('status')}

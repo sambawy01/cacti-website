@@ -4,7 +4,7 @@ type Lang = 'en' | 'ar';
 
 const t: Record<string, Record<Lang, string>> = {
   // Login
-  'bistro_cloud': { en: 'Bistro Cloud', ar: 'بيسترو كلاود' },
+  'bistro_cloud': { en: 'Cacti', ar: 'كاكتي' },
   'admin_panel': { en: 'Admin Panel', ar: 'لوحة التحكم' },
   'admin': { en: 'Admin', ar: 'إدارة' },
   'enter_password': { en: 'Enter admin password', ar: 'أدخل كلمة المرور' },

@@ -31,21 +31,21 @@ export function ProductsPage() {
   });
 
   return (
-    <div className="bg-[#F9F5F0] min-h-screen py-12">
+    <div className="bg-[#f5f5f0] min-h-screen py-12">
       <div className="container mx-auto px-4">
         {/* Header */}
         <div className="text-center mb-12">
-          <div className="w-16 h-16 bg-[#D94E28]/10 text-[#D94E28] rounded-full flex items-center justify-center mx-auto mb-6">
+          <div className="w-16 h-16 bg-[#0a4d4d]/10 text-[#0a4d4d] rounded-full flex items-center justify-center mx-auto mb-6">
             <Package className="w-8 h-8" />
           </div>
-          <h1 className="font-montserrat font-bold text-4xl mb-4 text-[#2C3E50]">Bistro Pantry</h1>
+          <h1 className="font-montserrat font-bold text-4xl mb-4 text-[#0a0a0a]">Cacti Pantry</h1>
           <p className="text-gray-600 max-w-2xl mx-auto">
-            Bring our kitchen magic home with you, every jar is handcrafted in small batches right here in El Gouna. No shortcuts, no preservatives - just the pure flavors that make Bistro Cloud special, now ready for your own culinary adventures.
+            Bring a taste of Cacti home with you. Every jar is handcrafted in small batches right here on the North Coast. No shortcuts, no preservatives — just the pure Mediterranean flavours that make Cacti special, ready for your own culinary adventures.
           </p>
         </div>
 
         {/* Search & Filter Bar */}
-        <div className="sticky top-24 z-20 bg-[#F9F5F0]/95 backdrop-blur-sm py-4 mb-8 -mx-4 px-4 border-b border-gray-200/50">
+        <div className="sticky top-24 z-20 bg-[#f5f5f0]/95 backdrop-blur-sm py-4 mb-8 -mx-4 px-4 border-b border-gray-200/50">
           <div className="flex flex-col md:flex-row gap-4 items-center justify-between max-w-5xl mx-auto">
             {/* Categories */}
             <div className="flex overflow-x-auto pb-2 md:pb-0 gap-2 w-full md:w-auto hide-scrollbar">
@@ -55,8 +55,8 @@ export function ProductsPage() {
                   onClick={() => setActiveCategory(category)}
                   className={`px-5 py-2 rounded-full text-sm font-semibold transition-all duration-300 whitespace-nowrap ${
                     activeCategory === category
-                      ? 'bg-[#D94E28] text-white shadow-md transform scale-105'
-                      : 'bg-white text-gray-600 hover:bg-gray-100 border border-gray-200'
+                      ? 'bg-[#0a4d4d] text-white shadow-md transform scale-105'
+                      : 'bg-white text-gray-600 hover:bg-[#e8f4f4] hover:text-[#0a4d4d] border border-[#0a4d4d]/10'
                   }`}
                 >
                   {category}
@@ -72,7 +72,7 @@ export function ProductsPage() {
                 placeholder="Search pantry..." 
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
-                className="w-full pl-10 pr-4 py-2 rounded-full border border-gray-200 bg-white focus:outline-none focus:ring-2 focus:ring-[#D94E28]/20 focus:border-[#D94E28]"
+                className="w-full pl-10 pr-4 py-2 rounded-full border border-[#0a4d4d]/15 bg-white focus:outline-none focus:ring-2 focus:ring-[#0a4d4d]/20 focus:border-[#0a4d4d]"
               />
             </div>
           </div>
@@ -104,13 +104,13 @@ export function ProductsPage() {
                   />
                   <div className="absolute top-4 left-4 flex flex-wrap gap-2">
                     {item.dietary?.map((tag) => (
-                      <span key={tag} className="bg-white/95 backdrop-blur-sm px-2 py-1 rounded-md text-[10px] font-bold tracking-wider uppercase text-[#2C3E50] shadow-sm">
+                      <span key={tag} className="bg-white/95 backdrop-blur-sm px-2 py-1 rounded-md text-[10px] font-bold tracking-wider uppercase text-[#0a4d4d] shadow-sm">
                         {tag}
                       </span>
                     ))}
                   </div>
                   {item.status === 'limited' && (
-                    <div className="absolute top-4 right-4 bg-orange-100 text-orange-700 px-3 py-1 rounded-full text-xs font-bold shadow-sm animate-pulse">
+                    <div className="absolute top-4 right-4 bg-[#f0e6d2] text-[#0a4d4d] px-3 py-1 rounded-full text-xs font-bold shadow-sm animate-pulse">
                       Low Stock
                     </div>
                   )}
@@ -124,8 +124,8 @@ export function ProductsPage() {
                 {/* Content Area */}
                 <div className={`p-6 flex flex-col ${expandedItems.has(item.id) ? 'min-h-[220px]' : 'h-[220px]'}`}>
                   <div className="flex justify-between items-start mb-2">
-                    <h3 className="font-montserrat font-bold text-lg text-[#2C3E50] leading-tight">{item.name}</h3>
-                    <span className="font-bold text-[#D94E28] whitespace-nowrap ml-2">EGP {item.price}</span>
+                    <h3 className="font-montserrat font-bold text-lg text-[#0a0a0a] leading-tight">{item.name}</h3>
+                    <span className="font-bold text-[#0a4d4d] whitespace-nowrap ml-2">EGP {item.price}</span>
                   </div>
 
                   <div className="mb-4 flex-1">
@@ -133,7 +133,7 @@ export function ProductsPage() {
                     {item.description && item.description.length > 80 && (
                       <button
                         onClick={(e) => { e.stopPropagation(); toggleExpand(item.id); }}
-                        className="text-[#D94E28] text-xs font-semibold mt-1 flex items-center gap-1 hover:underline"
+                        className="text-[#0a4d4d] text-xs font-semibold mt-1 flex items-center gap-1 hover:underline"
                       >
                         {expandedItems.has(item.id) ? (
                           <>Less <ChevronUp className="w-3 h-3" /></>
@@ -147,7 +147,7 @@ export function ProductsPage() {
                     {item.status === 'sold_out' ? (
                        <Button disabled className="w-full bg-gray-100 text-gray-400 border border-gray-200">Unavailable</Button>
                     ) : (
-                      <Button onClick={() => addItem(item)} className="w-full bg-[#2C3E50] hover:bg-[#D94E28] text-white transition-all duration-300 shadow-lg hover:shadow-[#D94E28]/25 h-12 rounded-xl text-base font-semibold group-hover:translate-y-[-2px]">
+                      <Button onClick={() => addItem(item)} className="w-full bg-[#0a4d4d] hover:bg-[#06b6d4] text-white transition-all duration-300 shadow-lg hover:shadow-[#06b6d4]/25 h-12 rounded-xl text-base font-semibold group-hover:translate-y-[-2px]">
                         <Plus className="w-4 h-4 mr-2" />Add to Cart
                       </Button>
                     )}
@@ -160,7 +160,7 @@ export function ProductsPage() {
         
         {filteredItems.length === 0 && !loading && (
           <div className="text-center py-20">
-            <div className="w-16 h-16 bg-gray-100 rounded-full flex items-center justify-center mx-auto mb-4 text-gray-400">
+            <div className="w-16 h-16 bg-[#e8f4f4] rounded-full flex items-center justify-center mx-auto mb-4 text-[#0a4d4d]">
               <Search className="w-8 h-8" />
             </div>
             <h3 className="text-xl font-bold text-gray-800 mb-2">No pantry items found</h3>
@@ -168,7 +168,7 @@ export function ProductsPage() {
             <Button 
               variant="link" 
               onClick={() => { setSearchQuery(''); setActiveCategory('All'); }}
-              className="text-[#D94E28] mt-2"
+              className="text-[#0a4d4d] mt-2"
             >
               Clear all filters
             </Button>

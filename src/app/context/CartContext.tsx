@@ -28,7 +28,7 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
   const [items, setItems] = useState<CartItem[]>(() => {
     if (typeof window === 'undefined') return [];
     try {
-      const saved = localStorage.getItem('bistro_cart');
+      const saved = localStorage.getItem('cacti_cart');
       return saved ? JSON.parse(saved) : [];
     } catch (error) {
       console.error('Failed to parse cart from local storage:', error);
@@ -38,7 +38,7 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
   const [isCartOpen, setIsCartOpen] = useState(false);
 
   useEffect(() => {
-    localStorage.setItem('bistro_cart', JSON.stringify(items));
+    localStorage.setItem('cacti_cart', JSON.stringify(items));
   }, [items]);
 
   const addItem = (newItem: Omit<CartItem, 'quantity'>) => {
@@ -74,7 +74,7 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
   };
 
   const clearCart = () => {
-    localStorage.removeItem('bistro_cart');
+    localStorage.removeItem('cacti_cart');
     setItems([]);
   };
 

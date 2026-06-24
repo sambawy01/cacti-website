@@ -39,10 +39,10 @@ export function AdminLogin({ onLogin, l }: AdminLoginProps) {
   }
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-[#F9F5F0]">
+    <div className="min-h-screen flex items-center justify-center bg-[#f5f5f0]">
       <div className="w-full max-w-sm mx-auto p-8">
         <div className="text-center mb-8">
-          <h1 className="text-3xl font-bold text-[#2C3E50]">{tr('bistro_cloud')}</h1>
+          <h1 className="text-3xl font-bold text-[#0a0a0a]">{tr('bistro_cloud')}</h1>
           <p className="text-sm text-muted-foreground mt-1">{tr('admin_panel')}</p>
         </div>
 

@@ -74,7 +74,7 @@ export function AdminPage() {
 
   if (checking) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-[#F9F5F0]">
+      <div className="min-h-screen flex items-center justify-center bg-[#f5f5f0]">
         <Loader2 className="size-8 animate-spin text-muted-foreground" />
       </div>
     );
@@ -111,11 +111,11 @@ export function AdminPage() {
   }
 
   return (
-    <div className="min-h-screen bg-[#F9F5F0]" dir={dir}>
+    <div className="min-h-screen bg-[#f5f5f0]" dir={dir}>
       <header className="bg-white border-b sticky top-0 z-40">
         <div className="max-w-6xl mx-auto px-4 h-14 flex items-center justify-between">
           <div className="flex items-center gap-2">
-            <h1 className="text-lg font-bold text-[#2C3E50]">{tr('bistro_cloud')}</h1>
+            <h1 className="text-lg font-bold text-[#0a0a0a]">{tr('bistro_cloud')}</h1>
             <span className="text-xs text-muted-foreground bg-muted px-2 py-0.5 rounded">
               {role ? ROLE_LABELS[role][lang] : tr('admin')}
             </span>
@@ -141,7 +141,7 @@ export function AdminPage() {
                 onClick={() => setSection(s.key)}
                 className={`flex items-center gap-1.5 px-4 py-2 rounded-md text-sm font-medium transition-colors ${
                   section === s.key
-                    ? 'bg-[#2C3E50] text-white'
+                    ? 'bg-[#0a0a0a] text-white'
                     : 'text-muted-foreground hover:bg-muted'
                 }`}
               >

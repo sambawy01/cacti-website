@@ -162,9 +162,9 @@ export function CartDrawer() {
             transition={{ type: 'spring', damping: 25, stiffness: 200 }}
             className="fixed right-0 top-0 h-full w-full max-w-md bg-white z-50 shadow-2xl flex flex-col"
           >
-            <div className="p-6 border-b flex items-center justify-between bg-[#F9F5F0]">
+            <div className="p-6 border-b flex items-center justify-between bg-[#f5f5f0]">
               <h2 className="font-montserrat font-bold text-xl flex items-center gap-2">
-                <ShoppingBag className="w-5 h-5 text-[#D94E28]" />
+                <ShoppingBag className="w-5 h-5 text-[#0a4d4d]" />
                 Your Order
               </h2>
               <button onClick={toggleCart} className="p-2 hover:bg-black/5 rounded-full">
@@ -186,7 +186,7 @@ export function CartDrawer() {
                       : `Scheduled for ${slotLabel(orderResult.deliverySlot)} today.`}
                   </p>
                 </div>
-                <div className="bg-[#F9F5F0] rounded-xl p-4 mb-4 text-sm text-gray-700">
+                <div className="bg-[#f5f5f0] rounded-xl p-4 mb-4 text-sm text-gray-700">
                   {orderResult.paymentMethod === 'cod' && <p>💵 <strong>Pay cash on delivery.</strong></p>}
                   {orderResult.paymentMethod === 'card_on_delivery' && <p>💳 <strong>Pay by card on delivery</strong> — our driver brings a card machine.</p>}
                   {orderResult.paymentMethod === 'instapay' && (
@@ -198,7 +198,7 @@ export function CartDrawer() {
                 </div>
                 <a
                   href={`/track?token=${orderResult.trackingToken}`}
-                  className="block text-center bg-[#D94E28] text-white font-bold rounded-xl py-3 mb-3"
+                  className="block text-center bg-[#0a4d4d] text-white font-bold rounded-xl py-3 mb-3"
                 >
                   Track your order
                 </a>
@@ -228,7 +228,7 @@ export function CartDrawer() {
                     <div className="flex-1 flex flex-col justify-between">
                       <div>
                         <h3 className="font-bold text-gray-800 text-sm">{item.name}</h3>
-                        <p className="text-[#D94E28] font-bold text-sm">EGP {item.price}</p>
+                        <p className="text-[#0a4d4d] font-bold text-sm">EGP {item.price}</p>
                       </div>
 
                       <div className="flex items-center justify-between mt-2">
@@ -236,14 +236,14 @@ export function CartDrawer() {
                           <button
                             onClick={() => updateQuantity(item.id, -1)}
                             disabled={item.quantity <= 1}
-                            className="w-6 h-6 flex items-center justify-center bg-white rounded shadow-sm disabled:opacity-50 text-gray-600 hover:text-[#D94E28]"
+                            className="w-6 h-6 flex items-center justify-center bg-white rounded shadow-sm disabled:opacity-50 text-gray-600 hover:text-[#0a4d4d]"
                           >
                             <Minus className="w-3 h-3" />
                           </button>
                           <span className="font-semibold text-sm w-4 text-center">{item.quantity}</span>
                           <button
                             onClick={() => updateQuantity(item.id, 1)}
-                            className="w-6 h-6 flex items-center justify-center bg-white rounded shadow-sm text-gray-600 hover:text-[#D94E28]"
+                            className="w-6 h-6 flex items-center justify-center bg-white rounded shadow-sm text-gray-600 hover:text-[#0a4d4d]"
                           >
                             <Plus className="w-3 h-3" />
                           </button>
@@ -262,7 +262,7 @@ export function CartDrawer() {
             </div>
 
             {items.length > 0 && (
-              <div className="p-6 border-t bg-[#F9F5F0] overflow-y-auto max-h-[60vh]">
+              <div className="p-6 border-t bg-[#f5f5f0] overflow-y-auto max-h-[60vh]">
                 {/* Friendly note for returning customers — never hides any field */}
                 {prefilled && (
                   <div className="mb-3 p-3 bg-white rounded-lg border border-gray-100">
@@ -281,20 +281,20 @@ export function CartDrawer() {
                       value={customerName}
                       onChange={(e) => setCustomerName(e.target.value)}
                       placeholder="Your Name"
-                      className="w-full p-3 rounded-lg border border-gray-200 bg-white text-sm focus:outline-none focus:ring-2 focus:ring-[#D94E28]/20 focus:border-[#D94E28]"
+                      className="w-full p-3 rounded-lg border border-gray-200 bg-white text-sm focus:outline-none focus:ring-2 focus:ring-[#0a4d4d]/20 focus:border-[#0a4d4d]"
                     />
                     <input
                       type="tel"
                       value={customerPhone}
                       onChange={(e) => setCustomerPhone(e.target.value)}
                       placeholder="Phone Number (e.g. +20 122 128 8804)"
-                      className="w-full p-3 rounded-lg border border-gray-200 bg-white text-sm focus:outline-none focus:ring-2 focus:ring-[#D94E28]/20 focus:border-[#D94E28]"
+                      className="w-full p-3 rounded-lg border border-gray-200 bg-white text-sm focus:outline-none focus:ring-2 focus:ring-[#0a4d4d]/20 focus:border-[#0a4d4d]"
                     />
                   </div>
                 </div>
 
                 <div className="mb-6">
-                  <h3 className="font-bold text-gray-800 mb-3 text-sm">Email <span className="text-[#D94E28]">*</span> <span className="font-normal text-gray-500">(for order & delivery updates)</span></h3>
+                  <h3 className="font-bold text-gray-800 mb-3 text-sm">Email <span className="text-[#0a4d4d]">*</span> <span className="font-normal text-gray-500">(for order & delivery updates)</span></h3>
                   <input
                     type="email"
                     value={customerEmail}
@@ -302,20 +302,20 @@ export function CartDrawer() {
                     placeholder="you@example.com"
                     required
                     aria-required="true"
-                    className="w-full p-3 rounded-lg border border-gray-200 bg-white text-sm focus:outline-none focus:ring-2 focus:ring-[#D94E28]/20 focus:border-[#D94E28]"
+                    className="w-full p-3 rounded-lg border border-gray-200 bg-white text-sm focus:outline-none focus:ring-2 focus:ring-[#0a4d4d]/20 focus:border-[#0a4d4d]"
                   />
                 </div>
 
                 <div className="mb-6">
-                  <h3 className="font-bold text-gray-800 mb-3 text-sm">Delivery Address <span className="text-[#D94E28]">*</span></h3>
+                  <h3 className="font-bold text-gray-800 mb-3 text-sm">Delivery Address <span className="text-[#0a4d4d]">*</span></h3>
                   <textarea
                     value={address}
                     onChange={(e) => setAddress(e.target.value)}
-                    placeholder="Building, street, area in El Gouna…"
+                    placeholder="Building, street, area in Marsa Baghush…"
                     rows={2}
                     required
                     aria-required="true"
-                    className="w-full p-3 rounded-lg border border-gray-200 bg-white text-sm focus:outline-none focus:ring-2 focus:ring-[#D94E28]/20 focus:border-[#D94E28] resize-none"
+                    className="w-full p-3 rounded-lg border border-gray-200 bg-white text-sm focus:outline-none focus:ring-2 focus:ring-[#0a4d4d]/20 focus:border-[#0a4d4d] resize-none"
                   />
                 </div>
 
@@ -326,7 +326,7 @@ export function CartDrawer() {
                     value={location}
                     onChange={(e) => setLocation(e.target.value)}
                     placeholder="Paste a Google Maps link or describe your spot"
-                    className="w-full p-3 rounded-lg border border-gray-200 bg-white text-sm focus:outline-none focus:ring-2 focus:ring-[#D94E28]/20 focus:border-[#D94E28]"
+                    className="w-full p-3 rounded-lg border border-gray-200 bg-white text-sm focus:outline-none focus:ring-2 focus:ring-[#0a4d4d]/20 focus:border-[#0a4d4d]"
                   />
                 </div>
 
@@ -335,7 +335,7 @@ export function CartDrawer() {
                   <select
                     value={paymentMethod}
                     onChange={(e) => setPaymentMethod(e.target.value)}
-                    className="w-full p-3 rounded-lg border border-gray-200 bg-white text-sm font-medium text-gray-700 focus:outline-none focus:ring-2 focus:ring-[#D94E28]/20 focus:border-[#D94E28] appearance-none"
+                    className="w-full p-3 rounded-lg border border-gray-200 bg-white text-sm font-medium text-gray-700 focus:outline-none focus:ring-2 focus:ring-[#0a4d4d]/20 focus:border-[#0a4d4d] appearance-none"
                     style={{ backgroundImage: 'url("data:image/svg+xml,%3Csvg xmlns=\'http://www.w3.org/2000/svg\' width=\'12\' height=\'12\' viewBox=\'0 0 12 12\'%3E%3Cpath fill=\'%23666\' d=\'M6 8L1 3h10z\'/%3E%3C/svg%3E")', backgroundRepeat: 'no-repeat', backgroundPosition: 'right 12px center' }}
                   >
                     {[
@@ -369,7 +369,7 @@ export function CartDrawer() {
                       <select
                         value={selectedSlot}
                         onChange={(e) => setSelectedSlot(e.target.value)}
-                        className="w-full p-3 rounded-lg border border-gray-200 bg-white text-sm font-medium text-gray-700 focus:outline-none focus:ring-2 focus:ring-[#D94E28]/20 focus:border-[#D94E28] appearance-none"
+                        className="w-full p-3 rounded-lg border border-gray-200 bg-white text-sm font-medium text-gray-700 focus:outline-none focus:ring-2 focus:ring-[#0a4d4d]/20 focus:border-[#0a4d4d] appearance-none"
                         style={{ backgroundImage: 'url("data:image/svg+xml,%3Csvg xmlns=\'http://www.w3.org/2000/svg\' width=\'12\' height=\'12\' viewBox=\'0 0 12 12\'%3E%3Cpath fill=\'%23666\' d=\'M6 8L1 3h10z\'/%3E%3C/svg%3E")', backgroundRepeat: 'no-repeat', backgroundPosition: 'right 12px center' }}
                       >
                         {(availability ? availability.asap !== null : true) && (
@@ -403,12 +403,12 @@ export function CartDrawer() {
                     onChange={(e) => setOrderNotes(e.target.value)}
                     placeholder="Allergies, gate code, special requests…"
                     rows={2}
-                    className="w-full p-3 rounded-lg border border-gray-200 bg-white text-sm focus:outline-none focus:ring-2 focus:ring-[#D94E28]/20 focus:border-[#D94E28] resize-none"
+                    className="w-full p-3 rounded-lg border border-gray-200 bg-white text-sm focus:outline-none focus:ring-2 focus:ring-[#0a4d4d]/20 focus:border-[#0a4d4d] resize-none"
                   />
                 </div>
                 <div className="flex justify-between items-center mb-6">
                   <span className="text-gray-600">Total</span>
-                  <span className="font-montserrat font-bold text-2xl text-[#D94E28]">EGP {totalPrice}</span>
+                  <span className="font-montserrat font-bold text-2xl text-[#0a4d4d]">EGP {totalPrice}</span>
                 </div>
                 {checkoutError && (
                   <div className="mb-3 p-3 rounded-lg bg-red-50 border border-red-200 text-sm text-red-700">
@@ -421,12 +421,12 @@ export function CartDrawer() {
                 <Button
                   onClick={handleCheckout}
                   disabled={isSubmitting || checkoutBlocked}
-                  className="w-full h-14 text-lg font-bold rounded-xl shadow-lg shadow-[#D94E28]/20 disabled:opacity-70"
+                  className="w-full h-14 text-lg font-bold rounded-xl shadow-lg shadow-[#0a4d4d]/20 disabled:opacity-70"
                 >
                   {isSubmitting ? 'Placing order...' : 'Place Order'}
                 </Button>
                 <p className="text-center text-xs text-gray-500 mt-4">
-                  Free delivery across all of El Gouna
+                  Beachside delivery across Marsa Baghush
                 </p>
               </div>
             )}

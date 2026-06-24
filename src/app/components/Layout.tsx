@@ -2,40 +2,27 @@ import React, { useState } from 'react';
 import { Outlet, Link, useLocation } from 'react-router-dom';
 import { Menu, X, ShoppingBag, Phone, MapPin, Instagram, Mail } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
-import logoHeader from '@/assets/8ed5368e99d26da0c833286cd37634dbfa9feba8.png';
-import logoFooter from '@/assets/8ce61c2b20b01bfb625276cbc7a2d368e6d7d388.png';
 import { Button } from './ui/button';
 import { useCart, CartProvider } from '../context/CartContext';
 import { CartDrawer } from './CartDrawer';
-import { ChatWidget } from './ChatWidget';
-import { PlanBuilderChat } from './PlanBuilderChat';
 
 // Inner component to use cart hook
 function LayoutContent() {
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
-  const [isPlanBuilderOpen, setIsPlanBuilderOpen] = useState(false);
   const location = useLocation();
   const { toggleCart, totalItems } = useCart();
-
-  // Listen for custom event to open plan builder from any page
-  React.useEffect(() => {
-    const handler = () => setIsPlanBuilderOpen(true);
-    window.addEventListener('open-plan-builder', handler);
-    return () => window.removeEventListener('open-plan-builder', handler);
-  }, []);
 
   const toggleMenu = () => setIsMobileMenuOpen(!isMobileMenuOpen);
 
   const navLinks = [
     { name: 'Home', path: '/' },
     { name: 'Menu', path: '/menu' },
+    { name: 'Ordering', path: '/ordering' },
     { name: 'Pantry', path: '/products' },
-    { name: 'Catering', path: '/catering' },
-    { name: 'Contact', path: '/contact' },
   ];
 
   return (
-    <div className="flex flex-col min-h-screen font-sans bg-[#F9F5F0]">
+    <div className="flex flex-col min-h-screen font-sans bg-[#f5f5f0]">
       <CartDrawer />
       
       {/* Header */}
@@ -43,11 +30,12 @@ function LayoutContent() {
         <div className="container mx-auto px-4 md:px-6 h-20 flex items-center justify-between">
           {/* Logo */}
           <Link to="/" className="flex items-center gap-2 group">
-             <img 
-               src={logoHeader} 
-               alt="Bistro Cloud" 
-               className="h-16 w-auto object-contain transition-transform group-hover:scale-105" 
-             />
+            <span
+              className="text-2xl font-extrabold tracking-tight transition-transform group-hover:scale-105"
+              style={{ color: '#0a4d4d' }}
+            >
+              🌵 CACTI
+            </span>
           </Link>
 
           {/* Desktop Nav */}
@@ -56,13 +44,13 @@ function LayoutContent() {
               <Link
                 key={link.name}
                 to={link.path}
-                className={`text-sm font-semibold transition-colors hover:text-[#D94E28] relative py-2 ${
-                  location.pathname === link.path ? 'text-[#D94E28]' : 'text-gray-600'
+                className={`text-sm font-semibold transition-colors hover:text-[#0a4d4d] relative py-2 ${
+                  location.pathname === link.path ? 'text-[#0a4d4d]' : 'text-gray-600'
                 }`}
               >
                 {link.name}
                 {location.pathname === link.path && (
-                  <motion.div layoutId="underline" className="absolute bottom-0 left-0 right-0 h-0.5 bg-[#D94E28]" />
+                  <motion.div layoutId="underline" className="absolute bottom-0 left-0 right-0 h-0.5 bg-[#0a4d4d]" />
                 )}
               </Link>
             ))}
@@ -73,7 +61,7 @@ function LayoutContent() {
               <ShoppingBag className="w-4 h-4 mr-2" />
               Cart
               {totalItems > 0 && (
-                <span className="absolute -top-1 -right-1 bg-[#2C3E50] text-white text-[10px] font-bold h-5 w-5 flex items-center justify-center rounded-full border-2 border-white">
+                <span className="absolute -top-1 -right-1 bg-[#0a0a0a] text-white text-[10px] font-bold h-5 w-5 flex items-center justify-center rounded-full border-2 border-white">
                   {totalItems}
                 </span>
               )}
@@ -85,7 +73,7 @@ function LayoutContent() {
             <button onClick={toggleCart} className="relative p-2 text-gray-600">
               <ShoppingBag className="w-6 h-6" />
               {totalItems > 0 && (
-                <span className="absolute top-0 right-0 bg-[#D94E28] text-white text-[10px] font-bold h-4 w-4 flex items-center justify-center rounded-full">
+                <span className="absolute top-0 right-0 bg-[#0a4d4d] text-white text-[10px] font-bold h-4 w-4 flex items-center justify-center rounded-full">
                   {totalItems}
                 </span>
               )}
@@ -111,7 +99,7 @@ function LayoutContent() {
                 key={link.name}
                 to={link.path}
                 onClick={() => setIsMobileMenuOpen(false)}
-                className="text-2xl font-bold text-gray-800 hover:text-[#D94E28] flex items-center justify-between"
+                className="text-2xl font-bold text-gray-800 hover:text-[#0a4d4d] flex items-center justify-between"
               >
                 {link.name}
                 <span className="text-gray-300 text-lg">→</span>
@@ -137,71 +125,66 @@ function LayoutContent() {
           <div className="grid grid-cols-1 md:grid-cols-4 gap-12">
             <div>
               <Link to="/" className="mb-6 block">
-                <img 
-                  src={logoFooter} 
-                  alt="Bistro Cloud" 
-                  className="h-24 w-auto object-contain" 
-                />
+                <span
+                  className="text-2xl font-extrabold tracking-tight"
+                  style={{ color: '#0a4d4d' }}
+                >
+                  🌵 CACTI
+                </span>
               </Link>
               <p className="text-gray-400 text-sm leading-relaxed mb-6">
-                El Gouna's premium cloud kitchen. 100% natural ingredients, open kitchen policy, and Mediterranean warmth delivered to your door.
+                Marsa Baghush's premier beach restaurant and bar. Mediterranean seafood, sunset sessions, and Greek hospitality on the North Coast.
               </p>
               <div className="flex gap-4">
-                <a href="https://www.instagram.com/bistrocloudelgouna/" target="_blank" rel="noopener noreferrer" className="w-10 h-10 rounded-full bg-white/5 flex items-center justify-center hover:bg-[#D94E28] transition-colors border border-white/10 hover:border-transparent">
+                <a href="#" target="_blank" rel="noopener noreferrer" className="w-10 h-10 rounded-full bg-white/5 flex items-center justify-center hover:bg-[#0a4d4d] transition-colors border border-white/10 hover:border-transparent">
                   <Instagram className="w-5 h-5" />
                 </a>
               </div>
             </div>
 
             <div>
-              <h3 className="font-bold text-lg mb-6 text-[#D94E28]">Explore</h3>
+              <h3 className="font-bold text-lg mb-6 text-[#0a4d4d]">Explore</h3>
               <ul className="space-y-4 text-gray-300 text-sm">
-                <li><Link to="/menu" className="hover:text-[#D94E28] transition-colors">Our Menu</Link></li>
-                <li><Link to="/products" className="hover:text-[#D94E28] transition-colors">Bistro Pantry</Link></li>
-                <li><Link to="/catering" className="hover:text-[#D94E28] transition-colors">Corporate Catering</Link></li>
-                <li><Link to="/contact" className="hover:text-[#D94E28] transition-colors">Contact Us</Link></li>
-                <li><Link to="#" className="hover:text-[#D94E28] transition-colors">About Us</Link></li>
+                <li><Link to="/menu" className="hover:text-[#0a4d4d] transition-colors">Our Menu</Link></li>
+                <li><Link to="/ordering" className="hover:text-[#0a4d4d] transition-colors">Ordering</Link></li>
+                <li><Link to="/products" className="hover:text-[#0a4d4d] transition-colors">Cacti Pantry</Link></li>
+                <li><Link to="#" className="hover:text-[#0a4d4d] transition-colors">About Us</Link></li>
               </ul>
             </div>
 
             <div>
-              <h3 className="font-bold text-lg mb-6 text-[#D94E28]">Get in Touch</h3>
+              <h3 className="font-bold text-lg mb-6 text-[#0a4d4d]">Get in Touch</h3>
               <ul className="space-y-4 text-gray-300 text-sm">
                 <li className="flex items-start gap-3 group">
-                  <MapPin className="w-5 h-5 text-[#D94E28] shrink-0 group-hover:animate-bounce" />
-                  <a 
-                    href="https://maps.app.goo.gl/zYd24dZBBffosLSH7" 
-                    target="_blank" 
-                    rel="noopener noreferrer"
-                    className="hover:text-white transition-colors text-left"
-                  >
-                    <span>West Golf, New Sabina<br/>El Gouna, Red Sea, Egypt</span>
-                  </a>
+                  <MapPin className="w-5 h-5 text-[#0a4d4d] shrink-0 group-hover:animate-bounce" />
+                  <span className="text-left">
+                    Marsa Baghush, North Coast, Egypt
+                  </span>
                 </li>
                 <li className="flex items-center gap-3 group">
-                  <Phone className="w-5 h-5 text-[#D94E28] shrink-0 group-hover:rotate-12 transition-transform" />
-                  <a href="tel:+201221288804" className="hover:text-white transition-colors">+20 122 128 8804</a>
+                  <Phone className="w-5 h-5 text-[#0a4d4d] shrink-0 group-hover:rotate-12 transition-transform" />
+                  <a href="tel:+201000000000" className="hover:text-white transition-colors">+20 100 000 0000</a>
                 </li>
                 <li className="flex items-center gap-3 group">
-                  <Mail className="w-5 h-5 text-[#D94E28] shrink-0 group-hover:scale-110 transition-transform" />
-                  <a href="mailto:catering@bistrocloudeg.com" className="hover:text-white transition-colors">catering@bistrocloudeg.com</a>
+                  <Mail className="w-5 h-5 text-[#0a4d4d] shrink-0 group-hover:scale-110 transition-transform" />
+                  <a href="mailto:hello@cactirestaurant.com" className="hover:text-white transition-colors">hello@cactirestaurant.com</a>
                 </li>
               </ul>
             </div>
 
             <div>
-              <h3 className="font-bold text-lg mb-6 text-[#D94E28]">Opening Hours</h3>
+              <h3 className="font-bold text-lg mb-6 text-[#0a4d4d]">Opening Hours</h3>
               <ul className="space-y-4 text-gray-300 text-sm">
                 <li className="flex justify-between border-b border-white/10 pb-2">
                   <span>Mon - Sun</span>
-                  <span>10:00 AM - 8:00 PM</span>
+                  <span>12:00 PM - 2:00 AM</span>
                 </li>
               </ul>
             </div>
           </div>
           
           <div className="border-t border-white/10 mt-16 pt-8 text-center text-gray-500 text-sm flex flex-col md:flex-row justify-between items-center gap-4">
-            <p>© {new Date().getFullYear()} Bistro Cloud. All rights reserved.</p>
+            <p>© {new Date().getFullYear()} Cacti. All rights reserved.</p>
             <div className="flex gap-6">
               <Link to="#" className="hover:text-white">Privacy Policy</Link>
               <Link to="#" className="hover:text-white">Terms of Service</Link>
@@ -209,12 +192,6 @@ function LayoutContent() {
           </div>
         </div>
       </footer>
-
-      {/* AI Chat Widget */}
-      <ChatWidget />
-
-      {/* Plan Builder Chat Window */}
-      <PlanBuilderChat isOpen={isPlanBuilderOpen} onClose={() => setIsPlanBuilderOpen(false)} />
     </div>
   );
 }

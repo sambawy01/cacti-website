@@ -5,9 +5,9 @@
   --font-inter: 'Inter', sans-serif;
   
   /* Brand Colors */
-  --color-brand: #D94E28; /* Deep Ember */
-  --color-charcoal: #2C3E50; /* Text/Headers */
-  --color-beige: #F9F5F0; /* Warm Background */
+  --color-brand: #0a4d4d; /* Deep Teal */
+  --color-charcoal: #0a0a0a; /* Text/Headers */
+  --color-beige: #f5f5f0; /* Warm Background */
   --color-success: #27AE60;
   --color-warning: #F39C12;
 
@@ -30,14 +30,14 @@
   --muted: #EDE8E1;
   --muted-foreground: #7F8C8D;
   
-  --accent: #FFF5F2; /* Light Ember tint */
+  --accent: #e8f4f4; /* Light teal tint */
   --accent-foreground: var(--color-brand);
   
   --destructive: #E74C3C;
   --destructive-foreground: #ffffff;
 
-  --border: rgba(44, 62, 80, 0.1);
-  --input: rgba(44, 62, 80, 0.1);
+  --border: rgba(10, 10, 10, 0.1);
+  --input: rgba(10, 10, 10, 0.1);
   --ring: var(--color-brand);
   
   --radius: 0.75rem; /* 12px rounded corners */
@@ -45,10 +45,10 @@
 
 .dark {
   --background: #1A1A1A;
-  --foreground: #F9F5F0;
+  --foreground: #f5f5f0;
   --card: #2C2C2C;
-  --card-foreground: #F9F5F0;
-  --primary: #D94E28;
+  --card-foreground: #f5f5f0;
+  --primary: #0a4d4d;
   --primary-foreground: #FFFFFF;
   --muted: #333333;
   --muted-foreground: #95A5A6;
