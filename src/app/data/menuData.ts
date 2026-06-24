@@ -94,7 +94,7 @@ export const MENU_ITEMS: MenuItem[] = [
     description: 'Whole grilled Mediterranean sea bass — price per kg',
     price: 95,
     category: 'Catch of the Day',
-    image: img('Lavraki Sea Bass'),
+    image: '/dish-seabass-catch.jpg',
     dietary: ['Seafood', 'Grill'],
     status: 'available',
     section: 'Restaurant',
