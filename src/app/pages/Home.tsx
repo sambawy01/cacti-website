@@ -227,8 +227,8 @@ export function HomePage() {
                 transition={{ duration: 0.5, delay: 0.3 }}
                 className="absolute -bottom-6 -right-6 bg-[#0a4d4d] text-[#f0e6d2] px-6 py-4 rounded-2xl shadow-xl hidden md:block"
               >
-                <p className="font-serif text-3xl font-bold leading-none">Greek</p>
-                <p className="text-xs uppercase tracking-wider mt-1">Led Kitchen</p>
+                <p className="font-serif text-3xl font-bold leading-none">Cacti</p>
+                <p className="text-xs uppercase tracking-wider mt-1">Marsa Baghush</p>
               </motion.div>
             </motion.div>
 
