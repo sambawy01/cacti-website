@@ -225,10 +225,13 @@ export function HomePage() {
                 whileInView={{ opacity: 1, scale: 1 }}
                 viewport={{ once: true }}
                 transition={{ duration: 0.5, delay: 0.3 }}
-                className="absolute -bottom-6 -right-6 bg-[#0a4d4d] text-[#f0e6d2] px-6 py-4 rounded-2xl shadow-xl hidden md:block"
+                className="absolute -bottom-6 -right-6 bg-[#0a4d4d] px-6 py-4 rounded-2xl shadow-xl hidden md:block flex items-center justify-center"
               >
-                <p className="font-serif text-3xl font-bold leading-none">Cacti</p>
-                <p className="text-xs uppercase tracking-wider mt-1">Marsa Baghush</p>
+                <img
+                  src="/cacti-logo-full-white.png"
+                  alt="Cacti"
+                  className="h-12 w-auto object-contain"
+                />
               </motion.div>
             </motion.div>
 
