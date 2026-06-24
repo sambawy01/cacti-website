@@ -85,7 +85,7 @@ export function HomePage() {
             transition={{ duration: 0.8, delay: 0.5 }}
             className="mt-4 text-xl md:text-3xl font-light text-[#f0e6d2] tracking-wide"
           >
-            Where the desert meets the sea
+            Sea. Sun. Cacti.
           </motion.p>
           <motion.p
             initial={{ opacity: 0 }}

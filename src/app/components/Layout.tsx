@@ -30,12 +30,11 @@ function LayoutContent() {
         <div className="container mx-auto px-4 md:px-6 h-20 flex items-center justify-between">
           {/* Logo */}
           <Link to="/" className="flex items-center gap-2 group">
-            <span
-              className="text-2xl font-extrabold tracking-tight transition-transform group-hover:scale-105"
-              style={{ color: '#0a4d4d' }}
-            >
-              🌵 CACTI
-            </span>
+            <img
+              src="/cacti-logo-header.png"
+              alt="Cacti"
+              className="h-14 w-auto object-contain transition-transform group-hover:scale-105"
+            />
           </Link>
 
           {/* Desktop Nav */}
@@ -125,12 +124,11 @@ function LayoutContent() {
           <div className="grid grid-cols-1 md:grid-cols-4 gap-12">
             <div>
               <Link to="/" className="mb-6 block">
-                <span
-                  className="text-2xl font-extrabold tracking-tight"
-                  style={{ color: '#0a4d4d' }}
-                >
-                  🌵 CACTI
-                </span>
+                <img
+                  src="/cacti-logo-header-white.png"
+                  alt="Cacti"
+                  className="h-16 w-auto object-contain"
+                />
               </Link>
               <p className="text-gray-400 text-sm leading-relaxed mb-6">
                 Marsa Baghush's premier beach restaurant and bar. Mediterranean seafood, sunset sessions, and Greek hospitality on the North Coast.
