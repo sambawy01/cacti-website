@@ -17,6 +17,7 @@ function LayoutContent() {
   const navLinks = [
     { name: 'Home', path: '/' },
     { name: 'Menu', path: '/menu' },
+    { name: 'Events', path: '/events' },
     { name: 'Ordering', path: '/ordering' },
     { name: 'Pantry', path: '/products' },
   ];
