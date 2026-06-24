@@ -6,7 +6,7 @@ import { useCart } from '../context/CartContext';
 import { useMenuData } from '../data/useMenuData';
 import type { MenuItem } from '../data/menuData';
 
-const SECTIONS = ['Restaurant', 'Beach Bar', 'Bar', 'Kids'] as const;
+const SECTIONS = ['Restaurant', 'Kids'] as const;
 type Section = (typeof SECTIONS)[number];
 
 export function MenuPage() {

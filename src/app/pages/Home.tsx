@@ -1,12 +1,11 @@
-import React, { useState } from 'react';
+import React from 'react';
 import { Button } from '../components/ui/button';
 import { Link } from 'react-router-dom';
-import { motion, AnimatePresence } from 'motion/react';
+import { motion } from 'motion/react';
 import { useCart } from '../context/CartContext';
 import { useMenuData } from '../data/useMenuData';
 import { Music, Sunset, Wine, Plus, ChevronDown, ArrowRight } from 'lucide-react';
 
-const HERO_IMG = 'https://placehold.co/1920x1080/0a0a0a/0a4d4d?text=CACTI+Beach+Restaurant';
 const STORY_IMG = 'https://placehold.co/800x1000/0a4d4d/f0e6d2?text=Mediterranean+Beach';
 const CTA_BG = 'https://placehold.co/1920x600/0a0a0a/0a4d4d?text=Reserve+Your+Table';
 
@@ -31,15 +30,12 @@ const WEEKLY_EVENTS = [
 
 export function HomePage() {
   const { addItem } = useCart();
-  const { menuItems, loading } = useMenuData();
+  const { menuItems } = useMenuData();
 
   const signatureCategories = ['Raw Bar', 'Hot Mezze', 'Seafood Mains'];
-  const signatureDishes = menuItems
+  const dishes = menuItems
     .filter((item) => signatureCategories.includes(item.category))
     .slice(0, 6);
-
-  // Fallback to placeholder dishes if no data loaded yet
-  const dishes = signatureDishes;
 
   const containerVariants = {
     hidden: { opacity: 0 },
@@ -52,37 +48,98 @@ export function HomePage() {
 
   return (
     <div className="w-full bg-[#f5f5f0]">
-      {/* ============ 1. HERO ============ */}
+      {/* ============ 1. HERO — Futuristic with logo + motion ============ */}
       <section className="relative h-screen min-h-[600px] flex items-center justify-center overflow-hidden bg-[#0a0a0a]">
-        <img
-          src={HERO_IMG}
-          alt="Cacti Beach Restaurant"
-          className="absolute inset-0 w-full h-full object-cover opacity-60"
+        {/* Animated floating gradient orbs */}
+        <motion.div
+          animate={{
+            x: [0, 120, 0],
+            y: [0, -60, 0],
+            scale: [1, 1.3, 1],
+          }}
+          transition={{ duration: 20, repeat: Infinity, ease: 'easeInOut' }}
+          className="absolute top-0 left-0 w-[500px] h-[500px] bg-[#0a4d4d] rounded-full blur-[150px] opacity-50"
         />
-        <div className="absolute inset-0 bg-gradient-to-b from-transparent via-[#0a0a0a]/40 to-[#0a0a0a]" />
+        <motion.div
+          animate={{
+            x: [0, -100, 0],
+            y: [0, 80, 0],
+            scale: [1, 1.4, 1],
+          }}
+          transition={{ duration: 25, repeat: Infinity, ease: 'easeInOut' }}
+          className="absolute bottom-0 right-0 w-[500px] h-[500px] bg-[#06b6d4] rounded-full blur-[150px] opacity-30"
+        />
+        <motion.div
+          animate={{
+            x: [0, 60, 0],
+            y: [0, 40, 0],
+            scale: [1, 1.2, 1],
+            opacity: [0.15, 0.3, 0.15],
+          }}
+          transition={{ duration: 15, repeat: Infinity, ease: 'easeInOut' }}
+          className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[400px] h-[400px] bg-[#f0e6d2] rounded-full blur-[180px]"
+        />
 
+        {/* Subtle grid overlay for futuristic feel */}
+        <div
+          className="absolute inset-0 opacity-[0.03]"
+          style={{
+            backgroundImage: `linear-gradient(rgba(255,255,255,0.5) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,0.5) 1px, transparent 1px)`,
+            backgroundSize: '60px 60px',
+          }}
+        />
+
+        {/* Gradient vignette */}
+        <div className="absolute inset-0 bg-gradient-to-b from-[#0a0a0a]/30 via-transparent to-[#0a0a0a]" />
+
+        {/* Content */}
         <div className="relative z-10 text-center px-4 max-w-4xl">
-          <motion.img
-            src="/cacti-logo-full-white.png"
-            alt="Cacti"
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.8, delay: 0.1 }}
-            className="mx-auto w-48 md:w-64 h-auto mb-2"
-          />
+          {/* Logo with pulsing glow + entrance animation */}
+          <motion.div
+            initial={{ opacity: 0, scale: 0.8, y: 30 }}
+            animate={{ opacity: 1, scale: 1, y: 0 }}
+            transition={{ duration: 1.2, delay: 0.2, ease: [0.16, 1, 0.3, 1] }}
+            className="relative inline-block mb-2"
+          >
+            {/* Pulsing glow behind logo */}
+            <motion.div
+              animate={{
+                opacity: [0.2, 0.5, 0.2],
+                scale: [1, 1.1, 1],
+              }}
+              transition={{ duration: 4, repeat: Infinity, ease: 'easeInOut' }}
+              className="absolute inset-0 bg-[#06b6d4] blur-[60px] rounded-full"
+            />
+            <img
+              src="/cacti-logo-full-white.png"
+              alt="Cacti"
+              className="relative z-10 mx-auto w-48 md:w-64 h-auto"
+            />
+          </motion.div>
+
+          {/* Tagline with staggered entrance */}
           <motion.p
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            transition={{ duration: 0.8, delay: 0.8 }}
-            className="mt-4 text-sm md:text-base text-white/70 uppercase tracking-[0.25em]"
+            initial={{ opacity: 0, y: 15 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.8, delay: 0.9 }}
+            className="mt-6 text-sm md:text-base text-white/70 uppercase tracking-[0.25em]"
           >
             Mediterranean Beach Restaurant &amp; Bar &nbsp;|&nbsp; Marsa Baghush, North Coast
           </motion.p>
 
+          {/* Animated line under tagline */}
+          <motion.div
+            initial={{ width: 0 }}
+            animate={{ width: '120px' }}
+            transition={{ duration: 0.8, delay: 1.2 }}
+            className="mx-auto h-[2px] bg-gradient-to-r from-transparent via-[#06b6d4] to-transparent mt-6"
+          />
+
+          {/* CTA buttons with stagger */}
           <motion.div
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.8, delay: 1.1 }}
+            transition={{ duration: 0.8, delay: 1.4 }}
             className="mt-10 flex flex-col sm:flex-row gap-4 justify-center"
           >
             <Link to="/menu">
@@ -98,11 +155,12 @@ export function HomePage() {
           </motion.div>
         </div>
 
+        {/* Animated scroll indicator */}
         <motion.div
           initial={{ opacity: 0 }}
-          animate={{ opacity: 1, y: [0, 10, 0] }}
-          transition={{ duration: 2, repeat: Infinity, delay: 1.5 }}
-          className="absolute bottom-8 left-1/2 -translate-x-1/2 text-white/60 hidden sm:block"
+          animate={{ opacity: 1, y: [0, 12, 0] }}
+          transition={{ duration: 2, repeat: Infinity, delay: 2 }}
+          className="absolute bottom-8 left-1/2 -translate-x-1/2 text-white/50 hidden sm:block"
         >
           <ChevronDown className="w-8 h-8" />
         </motion.div>
@@ -124,10 +182,16 @@ export function HomePage() {
                 alt="Cacti beachfront restaurant"
                 className="rounded-3xl shadow-2xl w-full h-[500px] object-cover"
               />
-              <div className="absolute -bottom-6 -right-6 bg-[#0a4d4d] text-[#f0e6d2] px-6 py-4 rounded-2xl shadow-xl hidden md:block">
+              <motion.div
+                initial={{ opacity: 0, scale: 0.8 }}
+                whileInView={{ opacity: 1, scale: 1 }}
+                viewport={{ once: true }}
+                transition={{ duration: 0.5, delay: 0.3 }}
+                className="absolute -bottom-6 -right-6 bg-[#0a4d4d] text-[#f0e6d2] px-6 py-4 rounded-2xl shadow-xl hidden md:block"
+              >
                 <p className="font-serif text-3xl font-bold leading-none">70%</p>
                 <p className="text-xs uppercase tracking-wider mt-1">Seafood</p>
-              </div>
+              </motion.div>
             </motion.div>
 
             <motion.div
@@ -152,10 +216,17 @@ export function HomePage() {
                 bream at midnight, Cacti is where summer tastes like the sea.
               </p>
               <div className="flex flex-wrap gap-3">
-                {['Fresh Catch Daily', 'Greek Hospitality', 'Barefoot Elegance', 'Sunset Sessions'].map((tag) => (
-                  <span key={tag} className="px-4 py-2 rounded-full bg-[#e8f4f4] text-[#0a4d4d] text-sm font-semibold border border-[#0a4d4d]/10">
+                {['Fresh Catch Daily', 'Greek Hospitality', 'Barefoot Elegance', 'Sunset Sessions'].map((tag, i) => (
+                  <motion.span
+                    key={tag}
+                    initial={{ opacity: 0, scale: 0.8 }}
+                    whileInView={{ opacity: 1, scale: 1 }}
+                    viewport={{ once: true }}
+                    transition={{ duration: 0.3, delay: i * 0.08 }}
+                    className="px-4 py-2 rounded-full bg-[#e8f4f4] text-[#0a4d4d] text-sm font-semibold border border-[#0a4d4d]/10"
+                  >
                     {tag}
-                  </span>
+                  </motion.span>
                 ))}
               </div>
             </motion.div>
@@ -164,8 +235,14 @@ export function HomePage() {
       </section>
 
       {/* ============ 3. SIGNATURE DISHES ============ */}
-      <section className="py-24 md:py-32 bg-[#0a0a0a]">
-        <div className="container mx-auto px-4">
+      <section className="py-24 md:py-32 bg-[#0a0a0a] relative overflow-hidden">
+        {/* Subtle glow */}
+        <motion.div
+          animate={{ opacity: [0.05, 0.12, 0.05] }}
+          transition={{ duration: 8, repeat: Infinity, ease: 'easeInOut' }}
+          className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[600px] h-[600px] bg-[#0a4d4d] rounded-full blur-[200px]"
+        />
+        <div className="container mx-auto px-4 relative z-10">
           <div className="text-center mb-16">
             <span className="text-[#06b6d4] font-bold tracking-[0.3em] uppercase text-sm block mb-4">From the Sea</span>
             <h2 className="font-serif text-4xl md:text-5xl font-bold text-[#0a4d4d] mb-4">Signature Dishes</h2>
@@ -250,9 +327,17 @@ export function HomePage() {
 
       {/* ============ 4. SUNSET SESSIONS ============ */}
       <section className="relative py-24 md:py-32 bg-gradient-to-br from-[#0a4d4d] to-[#06b6d4] overflow-hidden">
-        <div className="absolute inset-0 opacity-10">
-          <div className="absolute top-10 right-10 w-96 h-96 bg-white rounded-full blur-[150px]" />
-        </div>
+        {/* Animated floating orbs */}
+        <motion.div
+          animate={{ y: [0, -40, 0], opacity: [0.1, 0.2, 0.1] }}
+          transition={{ duration: 6, repeat: Infinity, ease: 'easeInOut' }}
+          className="absolute top-10 right-10 w-96 h-96 bg-white rounded-full blur-[150px]"
+        />
+        <motion.div
+          animate={{ y: [0, 50, 0], opacity: [0.08, 0.15, 0.08] }}
+          transition={{ duration: 8, repeat: Infinity, ease: 'easeInOut' }}
+          className="absolute bottom-10 left-10 w-96 h-96 bg-[#f0e6d2] rounded-full blur-[150px]"
+        />
         <div className="container mx-auto px-4 relative z-10">
           <div className="text-center mb-16">
             <motion.h2
@@ -284,9 +369,12 @@ export function HomePage() {
                 transition={{ duration: 0.5, delay: i * 0.15 }}
                 className="bg-white/10 backdrop-blur-md border border-white/20 rounded-2xl p-8 text-center hover:bg-white/15 transition-all duration-300 group"
               >
-                <div className="w-16 h-16 bg-[#f0e6d2] rounded-full flex items-center justify-center mx-auto mb-6 group-hover:scale-110 transition-transform">
+                <motion.div
+                  whileHover={{ scale: 1.15, rotate: 5 }}
+                  className="w-16 h-16 bg-[#f0e6d2] rounded-full flex items-center justify-center mx-auto mb-6 transition-transform"
+                >
                   <feature.icon className="w-8 h-8 text-[#0a4d4d]" />
-                </div>
+                </motion.div>
                 <h3 className="font-serif text-2xl font-bold text-white mb-3">{feature.title}</h3>
                 <p className="text-white/80 leading-relaxed">{feature.desc}</p>
               </motion.div>
@@ -330,8 +418,13 @@ export function HomePage() {
       </section>
 
       {/* ============ 6. EVENTS CALENDAR ============ */}
-      <section className="py-24 md:py-32 bg-[#0a0a0a]">
-        <div className="container mx-auto px-4">
+      <section className="py-24 md:py-32 bg-[#0a0a0a] relative overflow-hidden">
+        <motion.div
+          animate={{ opacity: [0.03, 0.08, 0.03] }}
+          transition={{ duration: 10, repeat: Infinity, ease: 'easeInOut' }}
+          className="absolute bottom-0 right-0 w-[500px] h-[500px] bg-[#06b6d4] rounded-full blur-[200px]"
+        />
+        <div className="container mx-auto px-4 relative z-10">
           <div className="text-center mb-16">
             <span className="text-[#06b6d4] font-bold tracking-[0.3em] uppercase text-sm block mb-4">Weekly Calendar</span>
             <h2 className="font-serif text-4xl md:text-5xl font-bold text-white mb-4">This Summer at Cacti</h2>
@@ -346,7 +439,8 @@ export function HomePage() {
                 whileInView={{ opacity: 1, y: 0 }}
                 viewport={{ once: true }}
                 transition={{ duration: 0.4, delay: i * 0.06 }}
-                className={`rounded-2xl p-6 border transition-all duration-300 hover:scale-[1.03] ${
+                whileHover={{ scale: 1.03 }}
+                className={`rounded-2xl p-6 border transition-all duration-300 ${
                   event.day === 'Wednesday'
                     ? 'bg-gradient-to-br from-[#0a4d4d] to-[#06b6d4] border-transparent col-span-1 lg:col-span-1'
                     : 'bg-white/5 border-white/10 hover:border-[#06b6d4]/40'
@@ -360,12 +454,26 @@ export function HomePage() {
               </motion.div>
             ))}
           </div>
+
+          <div className="text-center mt-14">
+            <Link to="/events">
+              <Button variant="outline" className="border-2 border-[#06b6d4] text-[#06b6d4] hover:bg-[#06b6d4] hover:text-white bg-transparent rounded-full px-8 h-12 text-base font-semibold transition-all group">
+                View All Events <ArrowRight className="ml-2 w-4 h-4 group-hover:translate-x-1 transition-transform" />
+              </Button>
+            </Link>
+          </div>
         </div>
       </section>
 
       {/* ============ 7. CTA SECTION ============ */}
       <section className="relative py-32 md:py-40 overflow-hidden">
-        <img src={CTA_BG} alt="Reserve your table" className="absolute inset-0 w-full h-full object-cover" />
+        {/* Animated glow */}
+        <motion.div
+          animate={{ opacity: [0.1, 0.25, 0.1] }}
+          transition={{ duration: 5, repeat: Infinity, ease: 'easeInOut' }}
+          className="absolute inset-0 bg-gradient-to-b from-[#0a4d4d]/30 to-transparent"
+        />
+        <img src={CTA_BG} alt="Reserve your table" className="absolute inset-0 w-full h-full object-cover opacity-20" />
         <div className="absolute inset-0 bg-[#0a0a0a]/80" />
         <div className="relative z-10 text-center px-4 max-w-3xl mx-auto">
           <motion.h2
