@@ -5,7 +5,7 @@ import { Music, Sunset, Moon, Calendar, MapPin, Clock, ArrowRight, Sparkles, Win
 import { Button } from '../components/ui/button';
 
 const WEEKLY_EVENTS = [
-  { day: 'Sunday', theme: 'Seafood Sundays', icon: Star, desc: 'Whole fresh catch of the day, grilled on charcoal. Oyster hour from 5 PM.', time: '12:00 PM - Late', color: '#0a4d4d' },
+  { day: 'Sunday', theme: 'Seafood Sundays', icon: Star, desc: 'Whole fresh catch of the day, grilled on charcoal. Fresh catch hour from 5 PM.', time: '12:00 PM - Late', color: '#0a4d4d' },
   { day: 'Monday', theme: 'Mediterranean Night', icon: Wine, desc: 'A Greek-led tasting menu celebrating the Aegean. Wine pairing available.', time: '7:00 PM - Late', color: '#067373' },
   { day: 'Tuesday', theme: 'Sunset Acoustic', icon: Music, desc: 'Live acoustic sets as the sun melts into the sea. Barefoot, chilled, beautiful.', time: '6:00 PM - 10:00 PM', color: '#0a4d4d' },
   { day: 'Wednesday', theme: 'Cacti Sunset Session', icon: Sunset, desc: 'Our signature DJ night from golden hour till late. The one not to miss.', time: '6:00 PM - 2:00 AM', color: '#06b6d4', featured: true },

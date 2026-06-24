@@ -68,7 +68,7 @@ export function MenuPage() {
             transition={{ delay: 0.3 }}
             className="text-[#f0e6d2] text-lg md:text-xl font-light tracking-wide"
           >
-            Fresh from the Mediterranean daily
+            Greek-led Mediterranean | 70% Seafood | Marsa Baghush
           </motion.p>
         </div>
       </section>

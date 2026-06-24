@@ -39,16 +39,7 @@ export function HomePage() {
     .slice(0, 6);
 
   // Fallback to placeholder dishes if no data loaded yet
-  const fallbackDishes = [
-    { id: 'f1', name: 'Oysters on the Half Shell', description: 'Fresh Mediterranean oysters with mignonette.', price: 320, image: 'https://placehold.co/400x300/0a4d4d/f0e6d2?text=Oysters', status: 'available' as const },
-    { id: 'f2', name: 'Tuna Tartare', description: 'Yellowfin tuna, avocado, sesame, ponzu.', price: 280, image: 'https://placehold.co/400x300/0a4d4d/f0e6d2?text=Tuna+Tartare', status: 'available' as const },
-    { id: 'f3', name: 'Grilled Octopus', description: 'Charcoal octopus, fava puree, capers.', price: 340, image: 'https://placehold.co/400x300/0a4d4d/f0e6d2?text=Octopus', status: 'available' as const },
-    { id: 'f4', name: 'Calamari Fritti', description: 'Fried calamari, lemon, smoked aioli.', price: 220, image: 'https://placehold.co/400x300/0a4d4d/f0e6d2?text=Calamari', status: 'available' as const },
-    { id: 'f5', name: 'Whole Sea Bream', description: 'Grilled sea bream, ladolemono, wild greens.', price: 450, image: 'https://placehold.co/400x300/0a4d4d/f0e6d2?text=Sea+Bream', status: 'available' as const },
-    { id: 'f6', name: 'Lobster Pasta', description: 'Lobster, linguine, cherry tomatoes, white wine.', price: 520, image: 'https://placehold.co/400x300/0a4d4d/f0e6d2?text=Lobster+Pasta', status: 'limited' as const },
-  ];
-
-  const dishes = signatureDishes.length > 0 ? signatureDishes : fallbackDishes;
+  const dishes = signatureDishes;
 
   const containerVariants = {
     hidden: { opacity: 0 },
@@ -99,7 +90,7 @@ export function HomePage() {
                 View Menu
               </Button>
             </Link>
-            <Link to="/menu">
+            <Link to="/ordering">
               <Button variant="outline" className="border-2 border-white/80 text-white hover:bg-white hover:text-[#0a4d4d] bg-transparent rounded-full px-8 h-14 text-base font-semibold transition-all duration-300">
                 Order Now
               </Button>
@@ -157,7 +148,7 @@ export function HomePage() {
               </p>
               <p className="text-gray-600 text-lg leading-relaxed mb-8">
                 Think barefoot elegance, warm Greek hospitality, and long sunset sessions that drift into
-                night events under the stars. Whether it's oysters at golden hour or a whole grilled sea
+                night events under the stars. Whether it's sea bass crudo at golden hour or a whole grilled sea
                 bream at midnight, Cacti is where summer tastes like the sea.
               </p>
               <div className="flex flex-wrap gap-3">
@@ -235,13 +226,25 @@ export function HomePage() {
             ))}
           </motion.div>
 
-          <div className="text-center mt-14">
-            <Link to="/menu">
-              <Button variant="outline" className="border-2 border-[#06b6d4] text-[#06b6d4] hover:bg-[#06b6d4] hover:text-white bg-transparent rounded-full px-8 h-12 text-base font-semibold transition-all group">
-                View Full Menu <ArrowRight className="ml-2 w-4 h-4 group-hover:translate-x-1 transition-transform" />
-              </Button>
-            </Link>
-          </div>
+          {dishes.length === 0 && (
+            <div className="text-center mt-14">
+              <Link to="/menu">
+                <Button className="bg-[#0a4d4d] hover:bg-[#06b6d4] text-white border-none rounded-full px-8 h-12 text-base font-semibold transition-all group">
+                  View Full Menu <ArrowRight className="ml-2 w-4 h-4 group-hover:translate-x-1 transition-transform" />
+                </Button>
+              </Link>
+            </div>
+          )}
+
+          {dishes.length > 0 && (
+            <div className="text-center mt-14">
+              <Link to="/menu">
+                <Button variant="outline" className="border-2 border-[#06b6d4] text-[#06b6d4] hover:bg-[#06b6d4] hover:text-white bg-transparent rounded-full px-8 h-12 text-base font-semibold transition-all group">
+                  View Full Menu <ArrowRight className="ml-2 w-4 h-4 group-hover:translate-x-1 transition-transform" />
+                </Button>
+              </Link>
+            </div>
+          )}
         </div>
       </section>
 

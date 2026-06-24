@@ -19,7 +19,6 @@ function LayoutContent() {
     { name: 'Menu', path: '/menu' },
     { name: 'Events', path: '/events' },
     { name: 'Ordering', path: '/ordering' },
-    { name: 'Pantry', path: '/products' },
   ];
 
   return (
@@ -135,7 +134,7 @@ function LayoutContent() {
                 Marsa Baghush's premier beach restaurant and bar. Mediterranean seafood, sunset sessions, and Greek hospitality on the North Coast.
               </p>
               <div className="flex gap-4">
-                <a href="#" target="_blank" rel="noopener noreferrer" className="w-10 h-10 rounded-full bg-white/5 flex items-center justify-center hover:bg-[#0a4d4d] transition-colors border border-white/10 hover:border-transparent">
+                <a href="https://instagram.com/redsea_anglers" target="_blank" rel="noopener noreferrer" className="w-10 h-10 rounded-full bg-white/5 flex items-center justify-center hover:bg-[#0a4d4d] transition-colors border border-white/10 hover:border-transparent">
                   <Instagram className="w-5 h-5" />
                 </a>
               </div>
@@ -146,8 +145,7 @@ function LayoutContent() {
               <ul className="space-y-4 text-gray-300 text-sm">
                 <li><Link to="/menu" className="hover:text-[#0a4d4d] transition-colors">Our Menu</Link></li>
                 <li><Link to="/ordering" className="hover:text-[#0a4d4d] transition-colors">Ordering</Link></li>
-                <li><Link to="/products" className="hover:text-[#0a4d4d] transition-colors">Cacti Pantry</Link></li>
-                <li><Link to="#" className="hover:text-[#0a4d4d] transition-colors">About Us</Link></li>
+                <li><Link to="/events" className="hover:text-[#0a4d4d] transition-colors">Events</Link></li>
               </ul>
             </div>
 
@@ -162,11 +160,11 @@ function LayoutContent() {
                 </li>
                 <li className="flex items-center gap-3 group">
                   <Phone className="w-5 h-5 text-[#0a4d4d] shrink-0 group-hover:rotate-12 transition-transform" />
-                  <a href="tel:+201000000000" className="hover:text-white transition-colors">+20 100 000 0000</a>
+                  <a href="tel:+201000254242" className="hover:text-white transition-colors">+20 100 025 4242</a>
                 </li>
                 <li className="flex items-center gap-3 group">
                   <Mail className="w-5 h-5 text-[#0a4d4d] shrink-0 group-hover:scale-110 transition-transform" />
-                  <a href="mailto:hello@cactirestaurant.com" className="hover:text-white transition-colors">hello@cactirestaurant.com</a>
+                  <a href="mailto:hello@cacti.eg" className="hover:text-white transition-colors">hello@cacti.eg</a>
                 </li>
               </ul>
             </div>
@@ -184,10 +182,6 @@ function LayoutContent() {
           
           <div className="border-t border-white/10 mt-16 pt-8 text-center text-gray-500 text-sm flex flex-col md:flex-row justify-between items-center gap-4">
             <p>© {new Date().getFullYear()} Cacti. All rights reserved.</p>
-            <div className="flex gap-6">
-              <Link to="#" className="hover:text-white">Privacy Policy</Link>
-              <Link to="#" className="hover:text-white">Terms of Service</Link>
-            </div>
           </div>
         </div>
       </footer>
