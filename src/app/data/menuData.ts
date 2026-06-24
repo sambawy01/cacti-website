@@ -81,7 +81,7 @@ export const MENU_ITEMS: MenuItem[] = [
     description: 'Thinly sliced smoked octopus, olive oil, lemon, capers, micro greens',
     price: 380,
     category: 'Raw Bar',
-    image: img('Octopus Carpaccio'),
+    image: '/dish-octopus-carpaccio.jpg',
     dietary: ['Seafood', 'Gluten-Free'],
     status: 'available',
     section: 'Restaurant',
