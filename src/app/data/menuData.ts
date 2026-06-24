@@ -58,7 +58,7 @@ export const MENU_ITEMS: MenuItem[] = [
     description: 'Thinly sliced swordfish, lemon, capers, rocket, olive oil, sea salt',
     price: 360,
     category: 'Raw Bar',
-    image: img('Swordfish Carpaccio'),
+    image: '/dish-swordfish-carpaccio.jpg',
     dietary: ['Seafood', 'Gluten-Free'],
     status: 'available',
     section: 'Restaurant',
