@@ -42,7 +42,7 @@ const GALLERY_IMAGES = [
 
 const WEEKLY_EVENTS = [
   { day: 'Sunday', theme: 'Seafood Sundays', desc: 'Whole fresh catch of the day, grilled on charcoal.' },
-  { day: 'Monday', theme: 'Mediterranean Night', desc: 'A Greek-led tasting menu celebrating the Aegean.' },
+  { day: 'Monday', theme: 'Mediterranean Night', desc: 'A tasting menu celebrating the Aegean.' },
   { day: 'Tuesday', theme: 'Sunset Acoustic', desc: 'Live acoustic sets as the sun melts into the sea.' },
   { day: 'Wednesday', theme: 'Cacti Sunset Session', desc: 'Our signature DJ night from golden hour till late.' },
   { day: 'Thursday', theme: 'Throwback Thursday', desc: 'Classic hits, vintage cocktails, barefoot dancing.' },
@@ -248,11 +248,11 @@ export function HomePage() {
               <p className="text-gray-600 text-lg leading-relaxed mb-5">
                 Cacti is a beachfront restaurant in Marsa Baghush on Egypt's North Coast, where the desert
                 landscape meets the crystal waters of the Mediterranean. Our kitchen is Greek-led and
-                sea-focused — <span className="text-[#0a4d4d] font-semibold">fresh catch daily, Greek-led, charcoal-grilled</span> —
+                sea-focused — <span className="text-[#0a4d4d] font-semibold">fresh catch daily, charcoal-grilled</span> —
                 built around the fresh catch landed daily by local fishermen.
               </p>
               <p className="text-gray-600 text-lg leading-relaxed mb-8">
-                Think barefoot elegance, warm Greek hospitality, and long sunset sessions that drift into
+                Think barefoot elegance, warm hospitality, and long sunset sessions that drift into
                 night events under the stars. Whether it's sea bass crudo at golden hour or a whole grilled sea
                 bream at midnight, Cacti is where summer tastes like the sea.
               </p>
@@ -288,7 +288,7 @@ export function HomePage() {
             <span className="text-[#06b6d4] font-bold tracking-[0.3em] uppercase text-sm block mb-4">From the Sea</span>
             <h2 className="font-serif text-4xl md:text-5xl font-bold text-[#0a4d4d] mb-4">Signature Dishes</h2>
             <p className="text-gray-400 max-w-2xl mx-auto text-lg">
-              A taste of what's coming out of our kitchen — fresh, Greek-led, and grilled over charcoal.
+              A taste of what's coming out of our kitchen — fresh, charcoal-grilled, and sea-focused.
             </p>
           </div>
 

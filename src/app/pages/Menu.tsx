@@ -68,7 +68,7 @@ export function MenuPage() {
             transition={{ delay: 0.3 }}
             className="text-[#f0e6d2] text-lg md:text-xl font-light tracking-wide"
           >
-            Greek-led Mediterranean | Marsa Baghush
+            Mediterranean | Marsa Baghush
           </motion.p>
         </div>
       </section>

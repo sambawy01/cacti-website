@@ -131,7 +131,7 @@ function LayoutContent() {
                 />
               </Link>
               <p className="text-gray-400 text-sm leading-relaxed mb-6">
-                Marsa Baghush's premier beach restaurant and bar. Mediterranean seafood, sunset sessions, and Greek hospitality on the North Coast.
+                Marsa Baghush's premier beach restaurant and bar. Mediterranean seafood, sunset sessions, and beach dining on the North Coast.
               </p>
               <div className="flex gap-4">
                 <a href="https://instagram.com/redsea_anglers" target="_blank" rel="noopener noreferrer" className="w-10 h-10 rounded-full bg-white/5 flex items-center justify-center hover:bg-[#0a4d4d] transition-colors border border-white/10 hover:border-transparent">
