@@ -13,9 +13,18 @@ const HERO_IMAGES = [
   '/hero-4.jpg',
   '/hero-5.jpg',
   '/hero-6.jpg',
+  '/hero-7.jpg',
+  '/hero-8.jpg',
+  '/hero-9.jpg',
+  '/hero-10.jpg',
 ];
 
-const STORY_IMG = 'https://placehold.co/800x1000/0a4d4d/f0e6d2?text=Mediterranean+Beach';
+const STORY_IMAGES = [
+  '/hero-8.jpg',
+  '/hero-9.jpg',
+  '/hero-10.jpg',
+  '/hero-2.jpg',
+];
 const CTA_BG = 'https://placehold.co/1920x600/0a0a0a/0a4d4d?text=Reserve+Your+Table';
 
 const GALLERY_IMAGES = [
@@ -24,7 +33,11 @@ const GALLERY_IMAGES = [
   { label: 'The Bar', span: '', url: '/hero-3.jpg' },
   { label: 'Beachfront', span: 'md:row-span-2', url: '/hero-4.jpg' },
   { label: 'Bar Counter', span: '', url: '/hero-6.jpg' },
-  { label: 'The Lounge', span: '', url: '/hero-3.jpg' },
+  { label: 'Twilight Lounge', span: '', url: '/hero-10.jpg' },
+  { label: 'The Bar', span: 'md:row-span-2', url: '/hero-7.jpg' },
+  { label: 'Open Air', span: '', url: '/hero-8.jpg' },
+  { label: 'Canopy Bar', span: '', url: '/hero-9.jpg' },
+  { label: 'Interior', span: '', url: '/hero-5.jpg' },
 ];
 
 const WEEKLY_EVENTS = [
@@ -41,12 +54,21 @@ export function HomePage() {
   const { addItem } = useCart();
   const { menuItems } = useMenuData();
   const [heroIndex, setHeroIndex] = useState(0);
+  const [storyIndex, setStoryIndex] = useState(0);
 
   // Rotate hero images every 5 seconds
   useEffect(() => {
     const interval = setInterval(() => {
       setHeroIndex((prev) => (prev + 1) % HERO_IMAGES.length);
     }, 5000);
+    return () => clearInterval(interval);
+  }, []);
+
+  // Rotate story images every 6 seconds
+  useEffect(() => {
+    const interval = setInterval(() => {
+      setStoryIndex((prev) => (prev + 1) % STORY_IMAGES.length);
+    }, 6000);
     return () => clearInterval(interval);
   }, []);
 
@@ -179,11 +201,25 @@ export function HomePage() {
               transition={{ duration: 0.7 }}
               className="relative"
             >
-              <img
-                src={STORY_IMG}
-                alt="Cacti beachfront restaurant"
-                className="rounded-3xl shadow-2xl w-full h-[500px] object-cover"
-              />
+              {/* Rotating story images with crossfade */}
+              {STORY_IMAGES.map((src, i) => (
+                <motion.img
+                  key={src}
+                  src={src}
+                  alt="Cacti beachfront restaurant"
+                  initial={{ opacity: 0 }}
+                  animate={{
+                    opacity: i === storyIndex ? 1 : 0,
+                    scale: i === storyIndex ? 1.05 : 1,
+                  }}
+                  transition={{
+                    opacity: { duration: 1.5, ease: 'easeInOut' },
+                    scale: { duration: 6, ease: 'easeOut' },
+                  }}
+                  className="rounded-3xl shadow-2xl w-full h-[500px] object-cover absolute inset-0"
+                />
+              ))}
+              <div className="relative h-[500px]" />
               <motion.div
                 initial={{ opacity: 0, scale: 0.8 }}
                 whileInView={{ opacity: 1, scale: 1 }}
