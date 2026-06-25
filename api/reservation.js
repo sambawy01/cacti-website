@@ -1,3 +1,5 @@
+import https from 'https';
+
 export default async function handler(req, res) {
   if (req.method === 'OPTIONS') {
     return res.status(200).end();
@@ -49,7 +51,6 @@ export default async function handler(req, res) {
 
     if (BOT_TOKEN) {
       try {
-        const https = require('https');
         const tgData = await new Promise((resolve, reject) => {
           const payload = JSON.stringify({
             chat_id: CHAT_ID,
