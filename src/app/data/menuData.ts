@@ -163,7 +163,7 @@ export const MENU_ITEMS: MenuItem[] = [
     price: 160,
     category: 'Cold Mezze',
     image: '/dish-taramasalata.jpg',
-    dietary: ['Vegetarian'],
+    dietary: ['Seafood'],
     status: 'available',
     section: 'Restaurant',
   },
