@@ -51,26 +51,42 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
     if (BOT_TOKEN) {
       try {
-        const tgRes = await fetch(
-          `https://api.telegram.org/bot${BOT_TOKEN}/sendMessage`,
-          {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              chat_id: CHAT_ID,
-              text: message,
-            }),
-          }
-        );
+        const https = await import('https');
+        const tgData = await new Promise<any>((resolve, reject) => {
+          const payload = JSON.stringify({
+            chat_id: CHAT_ID,
+            text: message,
+          });
 
-        const tgData = await tgRes.json();
+          const request = https.request({
+            hostname: 'api.telegram.org',
+            path: `/bot${BOT_TOKEN}/sendMessage`,
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'Content-Length': Buffer.byteLength(payload),
+            },
+          }, (response) => {
+            let data = '';
+            response.on('data', chunk => { data += chunk; });
+            response.on('end', () => {
+              try { resolve(JSON.parse(data)); }
+              catch { resolve({ raw: data }); }
+            });
+          });
+
+          request.on('error', reject);
+          request.write(payload);
+          request.end();
+        });
+
         telegramResult = tgData;
 
-        if (!tgRes.ok) {
+        if (!tgData.ok) {
           console.error('Telegram API error:', tgData);
         }
       } catch (tgErr) {
-        console.error('Telegram fetch error:', tgErr);
+        console.error('Telegram send error:', tgErr);
         telegramResult = { error: String(tgErr) };
       }
     } else {
