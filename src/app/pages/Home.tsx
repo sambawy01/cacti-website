@@ -171,9 +171,9 @@ export function HomePage() {
                 View Menu
               </Button>
             </Link>
-            <Link to="/ordering">
-              <Button variant="outline" className="border-2 border-white/80 text-white hover:bg-white hover:text-[#0a4d4d] bg-transparent rounded-full px-8 h-14 text-base font-semibold transition-all duration-300">
-                Order Now
+            <Link to="/reserve">
+              <Button variant="outline" className="border-2 border-white/80 text-white hover:bg-white hover:text-[#0a4d4d] bg-transparent rounded-full px-8 h-14 text-base font-semibold transition-all duration-300 hover:scale-105 shadow-lg shadow-[#0a4d4d]/30">
+                Reserve
               </Button>
             </Link>
           </motion.div>

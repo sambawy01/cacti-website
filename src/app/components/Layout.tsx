@@ -18,7 +18,7 @@ function LayoutContent() {
     { name: 'Home', path: '/' },
     { name: 'Menu', path: '/menu' },
     { name: 'Events', path: '/events' },
-    { name: 'Ordering', path: '/ordering' },
+    { name: 'Reservations', path: '/reserve' },
   ];
 
   return (
@@ -144,7 +144,7 @@ function LayoutContent() {
               <h3 className="font-bold text-lg mb-6 text-[#0a4d4d]">Explore</h3>
               <ul className="space-y-4 text-gray-300 text-sm">
                 <li><Link to="/menu" className="hover:text-[#0a4d4d] transition-colors">Our Menu</Link></li>
-                <li><Link to="/ordering" className="hover:text-[#0a4d4d] transition-colors">Ordering</Link></li>
+                <li><Link to="/reserve" className="hover:text-[#0a4d4d] transition-colors">Reservations</Link></li>
                 <li><Link to="/events" className="hover:text-[#0a4d4d] transition-colors">Events</Link></li>
               </ul>
             </div>
