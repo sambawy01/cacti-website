@@ -51,31 +51,43 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     const BOT_TOKEN = process.env.TELEGRAM_BOT_TOKEN;
     const CHAT_ID = process.env.TELEGRAM_CHAT_ID || '1412831908';
 
-    if (BOT_TOKEN) {
-      const tgRes = await fetch(
-        `https://api.telegram.org/bot${BOT_TOKEN}/sendMessage`,
-        {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            chat_id: CHAT_ID,
-            text: message,
-            parse_mode: 'HTML',
-          }),
-        }
-      );
+    console.log('TELEGRAM_BOT_TOKEN set:', !!BOT_TOKEN);
+    console.log('CHAT_ID:', CHAT_ID);
 
-      if (!tgRes.ok) {
-        console.error('Telegram API error:', await tgRes.text());
-        // Still return success to user — the request was received
+    if (BOT_TOKEN) {
+      try {
+        const tgRes = await fetch(
+          `https://api.telegram.org/bot${BOT_TOKEN}/sendMessage`,
+          {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              chat_id: CHAT_ID,
+              text: message,
+            }),
+          }
+        );
+
+        const tgData = await tgRes.json();
+        console.log('Telegram response:', JSON.stringify(tgData));
+
+        if (!tgRes.ok) {
+          console.error('Telegram API error:', tgData);
+        }
+      } catch (tgErr) {
+        console.error('Telegram fetch error:', tgErr);
       }
     } else {
       console.warn('TELEGRAM_BOT_TOKEN not set — reservation not sent to Telegram');
     }
 
-    // TODO: When Supabase is set up, also store the reservation in the database
-
-    return res.status(200).json({ success: true });
+    return res.status(200).json({ 
+      success: true, 
+      debug: {
+        tokenSet: !!BOT_TOKEN,
+        chatId: CHAT_ID,
+      }
+    });
   } catch (err) {
     console.error('Reservation API error:', err);
     return res.status(500).json({ error: 'Failed to process reservation' });
