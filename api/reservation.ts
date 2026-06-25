@@ -15,18 +15,15 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       partySize, sunbeds, notes,
     } = req.body;
 
-    // Validate required fields
     if (!name || !phone || !email || !date || !time) {
       return res.status(400).json({ error: 'Missing required fields' });
     }
 
-    // Format date nicely
     const dateObj = new Date(date);
     const dateLabel = dateObj.toLocaleDateString('en-US', {
       weekday: 'long', month: 'long', day: 'numeric', year: 'numeric',
     });
 
-    // Build the Telegram message
     const typeLabel = type === 'beach' ? '🏖️ Beach (Umbrella + Sunbeds)' : '🍽️ Restaurant';
     const sizeLabel = type === 'beach'
       ? `Sunbeds: ${sunbeds}`
@@ -47,12 +44,10 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       `⚠️ This is a request — needs your confirmation + payment link.`,
     ].filter(Boolean).join('\n');
 
-    // Send to Telegram
-    const BOT_TOKEN = process.env.TELEGRAM_BOT_TOKEN;
+    const BOT_TOKEN=proces...N;
     const CHAT_ID = process.env.TELEGRAM_CHAT_ID || '1412831908';
 
-    console.log('TELEGRAM_BOT_TOKEN set:', !!BOT_TOKEN);
-    console.log('CHAT_ID:', CHAT_ID);
+    let telegramResult: any = { skipped: true, reason: 'no token' };
 
     if (BOT_TOKEN) {
       try {
@@ -69,24 +64,26 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         );
 
         const tgData = await tgRes.json();
-        console.log('Telegram response:', JSON.stringify(tgData));
+        telegramResult = tgData;
 
         if (!tgRes.ok) {
           console.error('Telegram API error:', tgData);
         }
       } catch (tgErr) {
         console.error('Telegram fetch error:', tgErr);
+        telegramResult = { error: String(tgErr) };
       }
     } else {
       console.warn('TELEGRAM_BOT_TOKEN not set — reservation not sent to Telegram');
     }
 
-    return res.status(200).json({ 
-      success: true, 
+    return res.status(200).json({
+      success: true,
       debug: {
         tokenSet: !!BOT_TOKEN,
         chatId: CHAT_ID,
-      }
+        telegram: telegramResult,
+      },
     });
   } catch (err) {
     console.error('Reservation API error:', err);
