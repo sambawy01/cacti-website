@@ -162,7 +162,7 @@ export const MENU_ITEMS: MenuItem[] = [
     description: 'Cod roe purée, lemon, olive oil, warm pita',
     price: 160,
     category: 'Cold Mezze',
-    image: img('Tarama'),
+    image: '/dish-taramasalata.jpg',
     dietary: ['Vegetarian'],
     status: 'available',
     section: 'Restaurant',
