@@ -149,7 +149,7 @@ export const MENU_ITEMS: MenuItem[] = [
     description: "Ask your server for today's market catch and pricing",
     price: 0,
     category: 'Catch of the Day',
-    image: img('Catch of the Day'),
+    image: '/dish-catch-of-the-day.jpg',
     dietary: ['Seafood'],
     status: 'available',
     section: 'Restaurant',
