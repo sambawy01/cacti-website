@@ -105,7 +105,7 @@ export const MENU_ITEMS: MenuItem[] = [
     description: 'Whole grilled Mediterranean sea bream — price per kg',
     price: 85,
     category: 'Catch of the Day',
-    image: img('Tsipoura Sea Bream'),
+    image: '/dish-seabream-catch-of-day.jpg',
     dietary: ['Seafood', 'Grill'],
     status: 'available',
     section: 'Restaurant',
