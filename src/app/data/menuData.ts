@@ -116,7 +116,7 @@ export const MENU_ITEMS: MenuItem[] = [
     description: 'Whole grilled Mediterranean grouper — price per kg',
     price: 120,
     category: 'Catch of the Day',
-    image: img('Rofos Grouper'),
+    image: '/dish-grouper-rofos.jpg',
     dietary: ['Seafood', 'Grill'],
     status: 'available',
     section: 'Restaurant',
