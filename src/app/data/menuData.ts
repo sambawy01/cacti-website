@@ -127,7 +127,7 @@ export const MENU_ITEMS: MenuItem[] = [
     description: 'Whole fried local red mullet — price per kg',
     price: 65,
     category: 'Catch of the Day',
-    image: img('Koutsomoura Mullet'),
+    image: '/dish-red-mullet-fried.jpg',
     dietary: ['Seafood', 'Grill'],
     status: 'available',
     section: 'Restaurant',
