@@ -1,5 +1,9 @@
 import https from 'https';
 
+// In-memory store for reservations (will be replaced with Supabase later)
+// Vercel serverless functions are stateless, so we pass reservation data
+// through the Telegram callback_data payload.
+
 export default async function handler(req, res) {
   if (req.method === 'OPTIONS') {
     return res.status(200).end();
@@ -29,8 +33,12 @@ export default async function handler(req, res) {
       ? `Sunbeds: ${sunbeds}`
       : `Party Size: ${partySize}`;
 
+    // Build reservation ID (timestamp-based, short)
+    const resId = `R${Date.now().toString(36).toUpperCase()}`;
+
     const message = [
       `🌵 NEW RESERVATION REQUEST`,
+      `#${resId}`,
       ``,
       `📋 Type: ${typeLabel}`,
       `👤 Name: ${name}`,
@@ -41,7 +49,7 @@ export default async function handler(req, res) {
       `👥 ${sizeLabel}`,
       notes ? `📝 Notes: ${notes}` : '',
       ``,
-      `⚠️ This is a request — needs your confirmation + payment link.`,
+      `⚠️ Tap a button below to action this request.`,
     ].filter(Boolean).join('\n');
 
     const BOT_TOKEN = process.env.TELEGRAM_BOT_TOKEN;
@@ -51,10 +59,25 @@ export default async function handler(req, res) {
 
     if (BOT_TOKEN) {
       try {
+        // Pack reservation data into callback_data (max 64 bytes)
+        // Format: res:<base64-encoded-json>
+        const resData = JSON.stringify({ resId, type, name, phone, email, date, time, partySize, sunbeds, notes });
+        const encoded = Buffer.from(resData).toString('base64url');
+        const callbackConfirm = `confirm:${encoded}`;
+        const callbackReject = `reject:${encoded}`;
+
         const tgData = await new Promise((resolve, reject) => {
           const payload = JSON.stringify({
             chat_id: CHAT_ID,
             text: message,
+            reply_markup: {
+              inline_keyboard: [
+                [
+                  { text: '✅ Confirm', callback_data: callbackConfirm },
+                  { text: '❌ Cannot Accommodate', callback_data: callbackReject },
+                ],
+              ],
+            },
           });
 
           const request = https.request({
@@ -94,11 +117,7 @@ export default async function handler(req, res) {
 
     return res.status(200).json({
       success: true,
-      debug: {
-        tokenSet: !!BOT_TOKEN,
-        chatId: CHAT_ID,
-        telegram: telegramResult,
-      },
+      reservationId: resId,
     });
   } catch (err) {
     console.error('Reservation API error:', err);
