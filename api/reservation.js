@@ -1,6 +1,4 @@
-import type { VercelRequest, VercelResponse } from '@vercel/node';
-
-export default async function handler(req: VercelRequest, res: VercelResponse) {
+export default async function handler(req, res) {
   if (req.method === 'OPTIONS') {
     return res.status(200).end();
   }
@@ -44,15 +42,15 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       `⚠️ This is a request — needs your confirmation + payment link.`,
     ].filter(Boolean).join('\n');
 
-    const BOT_TOKEN=proces...N;
+    const BOT_TOKEN = process.env.TELEGRAM_BOT_TOKEN;
     const CHAT_ID = process.env.TELEGRAM_CHAT_ID || '1412831908';
 
-    let telegramResult: any = { skipped: true, reason: 'no token' };
+    let telegramResult = { skipped: true, reason: 'no token' };
 
     if (BOT_TOKEN) {
       try {
-        const https = await import('https');
-        const tgData = await new Promise<any>((resolve, reject) => {
+        const https = require('https');
+        const tgData = await new Promise((resolve, reject) => {
           const payload = JSON.stringify({
             chat_id: CHAT_ID,
             text: message,
