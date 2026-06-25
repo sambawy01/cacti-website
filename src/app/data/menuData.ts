@@ -138,7 +138,7 @@ export const MENU_ITEMS: MenuItem[] = [
     description: 'Whole grilled swordfish steak — also available raw, see Raw Bar — price per kg',
     price: 110,
     category: 'Catch of the Day',
-    image: img('Xifias Swordfish'),
+    image: '/dish-swordfish-grill.jpg',
     dietary: ['Seafood', 'Grill'],
     status: 'available',
     section: 'Restaurant',
