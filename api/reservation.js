@@ -1,8 +1,13 @@
 import https from 'https';
+import { createClient } from '@supabase/supabase-js';
 
-// In-memory store for reservations (will be replaced with Supabase later)
-// Vercel serverless functions are stateless, so we pass reservation data
-// through the Telegram callback_data payload.
+// ── Supabase client (server-side, uses service role key) ──────────────────
+const supabaseUrl = process.env.VITE_SUPABASE_URL || 'https://mmjjphgzzhdifvkrokxz.supabase.co';
+const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+
+const supabase = supabaseKey
+  ? createClient(supabaseUrl, supabaseKey, { auth: { persistSession: false } })
+  : null;
 
 export default async function handler(req, res) {
   if (req.method === 'OPTIONS') {
@@ -33,12 +38,42 @@ export default async function handler(req, res) {
       ? `Sunbeds: ${sunbeds}`
       : `Party Size: ${partySize}`;
 
-    // Build reservation ID (timestamp-based, short)
     const resId = `R${Date.now().toString(36).toUpperCase()}`;
 
+    // ── Save to Supabase ──────────────────────────────────────────────────
+    let dbId = null;
+    if (supabase) {
+      const { data, error } = await supabase
+        .from('reservations')
+        .insert({
+          type: type === 'beach' ? 'beach' : 'restaurant',
+          status: 'pending',
+          customer_name: name,
+          customer_phone: phone,
+          customer_email: email,
+          res_date: date,
+          res_time: time,
+          party_size: type === 'restaurant' ? parseInt(partySize) || 0 : 0,
+          sunbeds: type === 'beach' ? parseInt(sunbeds) || 0 : 0,
+          notes: notes || '',
+        })
+        .select('id')
+        .single();
+
+      if (error) {
+        console.error('Supabase insert error:', error.message);
+      } else if (data) {
+        dbId = data.id;
+      }
+    } else {
+      console.warn('SUPABASE_SERVICE_ROLE_KEY not set — reservation not saved to DB');
+    }
+
+    // ── Send Telegram notification (keep existing behavior) ───────────────
     const message = [
       `🌵 NEW RESERVATION REQUEST`,
       `#${resId}`,
+      dbId ? `DB: ${dbId}` : '',
       ``,
       `📋 Type: ${typeLabel}`,
       `👤 Name: ${name}`,
@@ -59,9 +94,7 @@ export default async function handler(req, res) {
 
     if (BOT_TOKEN) {
       try {
-        // Pack reservation data into callback_data (max 64 bytes)
-        // Format: res:<base64-encoded-json>
-        const resData = JSON.stringify({ resId, type, name, phone, email, date, time, partySize, sunbeds, notes });
+        const resData = JSON.stringify({ resId, type, name, phone, email, date, time, partySize, sunbeds, notes, dbId });
         const encoded = Buffer.from(resData).toString('base64url');
         const callbackConfirm = `confirm:${encoded}`;
         const callbackReject = `reject:${encoded}`;
@@ -118,6 +151,7 @@ export default async function handler(req, res) {
     return res.status(200).json({
       success: true,
       reservationId: resId,
+      dbId,
     });
   } catch (err) {
     console.error('Reservation API error:', err);

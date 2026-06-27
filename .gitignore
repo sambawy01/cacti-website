@@ -13,3 +13,4 @@ scripts/loyverse-item-map.dry.json
 node_modules/
 dist/
 node_modules/
+supabase/.temp/

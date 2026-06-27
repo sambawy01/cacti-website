@@ -1,4 +1,14 @@
 import https from 'https';
+import { createClient } from '@supabase/supabase-js';
+import crypto from 'crypto';
+
+// ── Supabase client (server-side) ─────────────────────────────────────────
+const supabaseUrl = process.env.VITE_SUPABASE_URL || 'https://mmjjphgzzhdifvkrokxz.supabase.co';
+const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+
+const supabase = supabaseKey
+  ? createClient(supabaseUrl, supabaseKey, { auth: { persistSession: false } })
+  : null;
 
 export default async function handler(req, res) {
   if (req.method === 'OPTIONS') {
@@ -26,6 +36,44 @@ export default async function handler(req, res) {
     const total = subtotal + vat + service;
 
     const orderId = `O${Date.now().toString(36).toUpperCase()}`;
+    const trackingToken = crypto.randomUUID();
+
+    // ── Save to Supabase ──────────────────────────────────────────────────
+    let dbId = null;
+    if (supabase) {
+      const { data, error } = await supabase
+        .from('orders')
+        .insert({
+          order_ref: orderId,
+          mode: 'delivery',
+          status: 'pending_approval',
+          customer_name: name,
+          customer_phone: phone,
+          customer_email: email,
+          delivery_address: address,
+          delivery_location: location || null,
+          delivery_date: new Date().toISOString().split('T')[0],
+          delivery_slot: deliverySlot || null,
+          note: note || null,
+          items: items || [],
+          subtotal,
+          vat_amount: vat,
+          service_amount: service,
+          total,
+          payment_method: paymentMethod || 'cod',
+          tracking_token: trackingToken,
+        })
+        .select('id')
+        .single();
+
+      if (error) {
+        console.error('Supabase insert error:', error.message);
+      } else if (data) {
+        dbId = data.id;
+      }
+    } else {
+      console.warn('SUPABASE_SERVICE_ROLE_KEY not set — order not saved to DB');
+    }
 
     const itemList = (items || []).map(it =>
       `  • ${it.quantity}x ${it.name} — EGP ${it.price * it.quantity}`
@@ -39,6 +87,7 @@ export default async function handler(req, res) {
 
     const message = [
       `🛒 NEW ORDER — ${orderId}`,
+      dbId ? `DB: ${dbId}` : '',
       ``,
       `👤 ${name}`,
       `📞 ${phone}`,
@@ -99,7 +148,9 @@ export default async function handler(req, res) {
     return res.status(200).json({
       ok: true,
       status: 'confirmed',
-      trackingToken: orderId,
+      trackingToken,
+      orderId,
+      dbId,
       deliverySlot,
       paymentMethod,
       total,
