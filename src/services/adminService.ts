@@ -235,3 +235,105 @@ export async function setOrderStatus(password: string, rowIndex: number, status:
   });
   if (!res.success) throw new Error(res.error || 'Failed to update order status');
 }
+
+// ── Supabase-backed admin operations ──────────────────────────────────────
+export interface SupabaseOrder {
+  id: string;
+  order_ref: string;
+  mode: 'delivery' | 'dine_in';
+  status: string;
+  customer_name: string;
+  customer_phone: string;
+  customer_email: string;
+  delivery_address: string | null;
+  delivery_slot: string | null;
+  table_id: string | null;
+  items: { name: string; price: number; quantity: number }[];
+  subtotal: number;
+  vat_amount: number;
+  service_amount: number;
+  total: number;
+  payment_method: string;
+  tracking_token: string;
+  note: string | null;
+  created_at: string;
+}
+
+export interface SupabaseReservation {
+  id: string;
+  type: 'beach' | 'restaurant';
+  status: string;
+  customer_name: string;
+  customer_phone: string;
+  customer_email: string;
+  res_date: string;
+  res_time: string;
+  party_size: number;
+  sunbeds: number;
+  notes: string;
+  created_at: string;
+}
+
+export interface SupabaseEvent {
+  id: string;
+  status: string;
+  customer_name: string;
+  customer_phone: string;
+  customer_email: string;
+  event_type: string | null;
+  event_date: string | null;
+  party_size: number | null;
+  notes: string;
+  quoted_price: number | null;
+  paymob_link: string | null;
+  created_at: string;
+}
+
+async function adminFetch<T>(password: string, action: string): Promise<T> {
+  const res = await fetch(`/api/admin?action=${action}`, {
+    headers: { Authorization: `Bearer ${password}` },
+  });
+  if (!res.ok) throw new Error(`HTTP ${res.status}`);
+  const json = await res.json();
+  if (json.error) throw new Error(json.error);
+  return json.data as T;
+}
+
+async function adminUpdate(password: string, action: string, body: Record<string, unknown>): Promise<void> {
+  const res = await fetch(`/api/admin?action=${action}`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      Authorization: `Bearer ${password}`,
+    },
+    body: JSON.stringify(body),
+  });
+  if (!res.ok) {
+    const json = await res.json().catch(() => ({}));
+    throw new Error(json.error || `HTTP ${res.status}`);
+  }
+}
+
+export async function fetchOrdersFromSupabase(password: string): Promise<SupabaseOrder[]> {
+  return adminFetch<SupabaseOrder[]>(password, 'orders');
+}
+
+export async function updateOrderStatusInSupabase(password: string, orderId: string, status: string): Promise<void> {
+  return adminUpdate(password, 'update_order', { id: orderId, status });
+}
+
+export async function fetchReservationsFromSupabase(password: string): Promise<SupabaseReservation[]> {
+  return adminFetch<SupabaseReservation[]>(password, 'reservations');
+}
+
+export async function updateReservationStatusInSupabase(password: string, id: string, status: string): Promise<void> {
+  return adminUpdate(password, 'update_reservation', { id, status });
+}
+
+export async function fetchEventsFromSupabase(password: string): Promise<SupabaseEvent[]> {
+  return adminFetch<SupabaseEvent[]>(password, 'events');
+}
+
+export async function updateEventInSupabase(password: string, id: string, updates: { status?: string; quoted_price?: number; paymob_link?: string }): Promise<void> {
+  return adminUpdate(password, 'update_event', { id, ...updates });
+}

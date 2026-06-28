@@ -11,6 +11,8 @@ import { InventoryTab } from './InventoryTab';
 import { RequisitionsTab } from './RequisitionsTab';
 import { LogOut, Loader2, Globe, Warehouse, Languages, UtensilsCrossed, Package, Moon, ClipboardList, BoxesIcon, ShoppingBag } from 'lucide-react';
 import { OrdersTab } from './OrdersTab';
+import { ReservationsTab } from './ReservationsTab';
+import { EventsTab } from './EventsTab';
 
 const ROLE_LABELS: Record<Role, Record<'en' | 'ar', string>> = {
   admin: { en: 'Admin', ar: 'إدارة' },
@@ -197,9 +199,28 @@ export function AdminPage() {
           </Tabs>
         )}
 
-        {/* Orders section — admin & chef only */}
+        {/* Operations section — admin & chef only */}
         {section === 'orders' && canSeeOrders && (
-          <OrdersTab l={l} />
+          <Tabs
+            defaultValue={sessionStorage.getItem('bc-admin-tab-orders') || 'orders'}
+            onValueChange={v => sessionStorage.setItem('bc-admin-tab-orders', v)}
+          >
+            <TabsList className="mb-6">
+              <TabsTrigger value="orders">
+                <ShoppingBag className="size-4 mr-1.5" /> Orders
+              </TabsTrigger>
+              <TabsTrigger value="reservations">
+                <UtensilsCrossed className="size-4 mr-1.5" /> Reservations
+              </TabsTrigger>
+              <TabsTrigger value="events">
+                <Moon className="size-4 mr-1.5" /> Events
+              </TabsTrigger>
+            </TabsList>
+
+            <TabsContent value="orders"><OrdersTab l={l} /></TabsContent>
+            <TabsContent value="reservations"><ReservationsTab /></TabsContent>
+            <TabsContent value="events"><EventsTab /></TabsContent>
+          </Tabs>
         )}
       </main>
     </div>
