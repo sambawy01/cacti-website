@@ -7,6 +7,7 @@ import { MenuPage } from './pages/Menu';
 import { ReservationPage } from './pages/Reservation';
 import { EventsPage } from './pages/Events';
 import { AdminPage } from './pages/admin/AdminPage';
+import { TrackPage } from './pages/Track';
 
 function App() {
   return (
@@ -19,6 +20,7 @@ function App() {
           <Route path="reserve" element={<ReservationPage />} />
           <Route path="events" element={<EventsPage />} />
         </Route>
+        <Route path="/track" element={<TrackPage />} />
         <Route path="/admin" element={<AdminPage />} />
       </Routes>
     </BrowserRouter>

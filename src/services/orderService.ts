@@ -53,8 +53,22 @@ export async function getAvailability(): Promise<Availability | null> {
 }
 
 export async function getOrderStatus(token: string): Promise<TrackedOrder | null> {
-  // TODO: Wire to Supabase when database is set up
-  return null;
+  try {
+    const res = await fetch(`/api/track?token=${encodeURIComponent(token)}`);
+    if (!res.ok) return null;
+    const data = await res.json();
+    if (!data || data.error) return null;
+    return {
+      name: data.name,
+      status: data.status,
+      deliveryDate: data.deliveryDate,
+      deliverySlot: data.deliverySlot,
+      orderSummary: data.orderSummary,
+      orderTotal: data.orderTotal,
+    };
+  } catch {
+    return null;
+  }
 }
 
 export type OnSitePaymentMethod = 'cod' | 'card_on_delivery' | 'instapay';

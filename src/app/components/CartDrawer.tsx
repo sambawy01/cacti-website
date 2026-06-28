@@ -6,6 +6,16 @@ import { motion, AnimatePresence } from 'motion/react';
 import { toast } from 'sonner';
 import { getAvailability, slotLabel, placeOrderOnSite, Availability, SlotInfo } from '../../services/orderService';
 
+const MIN_DELIVERY = 2000;
+const VAT_RATE = 0.14;
+const SERVICE_RATE = 0.12;
+
+const PAYMENT_OPTIONS = [
+  { value: 'cod', icon: '💵', label: 'Cash on Delivery', desc: 'Pay with cash when your order arrives' },
+  { value: 'card_on_delivery', icon: '💳', label: 'Card on Delivery', desc: 'Our driver brings a card machine' },
+  { value: 'instapay', icon: '🏦', label: 'InstaPay', desc: 'Bank transfer — we email you the details' },
+] as const;
+
 // Local fallback when the availability service is unreachable: same slot
 // generation the site used before capacity control (fail open).
 function fallbackSlots(): SlotInfo[] {
@@ -72,7 +82,14 @@ export function CartDrawer() {
   const selectedSlotInfo = slots?.find(s => s.time === selectedSlot) ?? null;
   const noSlotsLeft = !!availability && !availability.paused && availability.slots.length === 0;
   const orderingPaused = !!availability?.paused;
-  const checkoutBlocked = orderingPaused || noSlotsLeft;
+
+  // ── Totals breakdown (matches api/order.js) ──────────────────────────────
+  const subtotal = totalPrice;
+  const vatAmount = Math.round(subtotal * VAT_RATE);
+  const serviceAmount = Math.round(subtotal * SERVICE_RATE);
+  const grandTotal = subtotal + vatAmount + serviceAmount;
+  const belowMin = subtotal < MIN_DELIVERY;
+  const checkoutBlocked = orderingPaused || noSlotsLeft || belowMin;
 
   const handleCheckout = async () => {
     if (isSubmitting || checkoutBlocked) return;
@@ -332,20 +349,36 @@ export function CartDrawer() {
 
                 <div className="mb-6">
                   <h3 className="font-bold text-gray-800 mb-3 text-sm">Payment Method</h3>
-                  <select
-                    value={paymentMethod}
-                    onChange={(e) => setPaymentMethod(e.target.value)}
-                    className="w-full p-3 rounded-lg border border-gray-200 bg-white text-sm font-medium text-gray-700 focus:outline-none focus:ring-2 focus:ring-[#0a4d4d]/20 focus:border-[#0a4d4d] appearance-none"
-                    style={{ backgroundImage: 'url("data:image/svg+xml,%3Csvg xmlns=\'http://www.w3.org/2000/svg\' width=\'12\' height=\'12\' viewBox=\'0 0 12 12\'%3E%3Cpath fill=\'%23666\' d=\'M6 8L1 3h10z\'/%3E%3C/svg%3E")', backgroundRepeat: 'no-repeat', backgroundPosition: 'right 12px center' }}
-                  >
-                    {[
-                      { value: 'cod', label: 'Cash on Delivery' },
-                      { value: 'card_on_delivery', label: 'Card on Delivery (card machine at your door)' },
-                      { value: 'instapay', label: 'Instapay (bank transfer)' },
-                    ].map((m) => (
-                      <option key={m.value} value={m.value}>{m.label}</option>
+                  <div className="space-y-2">
+                    {PAYMENT_OPTIONS.map((opt) => (
+                      <button
+                        key={opt.value}
+                        type="button"
+                        onClick={() => setPaymentMethod(opt.value)}
+                        className={`w-full flex items-center gap-3 p-3 rounded-xl border-2 text-left transition-all ${
+                          paymentMethod === opt.value
+                            ? 'border-[#0a4d4d] bg-[#0a4d4d]/5'
+                            : 'border-gray-200 bg-white hover:border-gray-300'
+                        }`}
+                      >
+                        <span className="text-2xl">{opt.icon}</span>
+                        <div className="flex-1">
+                          <p className="font-semibold text-sm text-gray-800">{opt.label}</p>
+                          <p className="text-xs text-gray-500">{opt.desc}</p>
+                        </div>
+                        <div className={`w-5 h-5 rounded-full border-2 flex items-center justify-center shrink-0 ${
+                          paymentMethod === opt.value ? 'border-[#0a4d4d] bg-[#0a4d4d]' : 'border-gray-300'
+                        }`}>
+                          {paymentMethod === opt.value && <div className="w-2 h-2 bg-white rounded-full" />}
+                        </div>
+                      </button>
                     ))}
-                  </select>
+                  </div>
+                  {paymentMethod === 'instapay' && (
+                    <p className="text-xs text-[#0a4d4d] mt-2 ml-1">
+                      We'll email you our bank transfer details after you place your order.
+                    </p>
+                  )}
                 </div>
 
                 <div className="mb-6">
@@ -406,10 +439,41 @@ export function CartDrawer() {
                     className="w-full p-3 rounded-lg border border-gray-200 bg-white text-sm focus:outline-none focus:ring-2 focus:ring-[#0a4d4d]/20 focus:border-[#0a4d4d] resize-none"
                   />
                 </div>
-                <div className="flex justify-between items-center mb-6">
-                  <span className="text-gray-600">Total</span>
-                  <span className="font-montserrat font-bold text-2xl text-[#0a4d4d]">EGP {totalPrice}</span>
+                {/* ── Totals breakdown ─────────────────────────────────────── */}
+                <div className="mb-6 bg-white rounded-xl p-4 border border-gray-100 space-y-2">
+                  <div className="flex justify-between text-sm">
+                    <span className="text-gray-600">Subtotal</span>
+                    <span className="font-semibold text-gray-800">EGP {subtotal}</span>
+                  </div>
+                  <div className="flex justify-between text-sm">
+                    <span className="text-gray-600">VAT (14%)</span>
+                    <span className="font-semibold text-gray-800">EGP {vatAmount}</span>
+                  </div>
+                  <div className="flex justify-between text-sm">
+                    <span className="text-gray-600">Service (12%)</span>
+                    <span className="font-semibold text-gray-800">EGP {serviceAmount}</span>
+                  </div>
+                  <div className="border-t border-gray-200 pt-2 flex justify-between items-center">
+                    <span className="font-bold text-gray-800">Total</span>
+                    <span className="font-montserrat font-bold text-2xl text-[#0a4d4d]">EGP {grandTotal}</span>
+                  </div>
                 </div>
+                {belowMin && (
+                  <div className="mb-4 p-3 rounded-lg bg-amber-50 border border-amber-200 text-sm text-amber-800">
+                    <p className="font-semibold mb-1">
+                      Add EGP {MIN_DELIVERY - subtotal} more to checkout
+                    </p>
+                    <p className="text-amber-600">
+                      Minimum delivery order is EGP {MIN_DELIVERY}.
+                    </p>
+                    <div className="mt-2 h-2 bg-amber-200 rounded-full overflow-hidden">
+                      <div
+                        className="h-full bg-[#0a4d4d] rounded-full transition-all"
+                        style={{ width: `${Math.min(100, (subtotal / MIN_DELIVERY) * 100)}%` }}
+                      />
+                    </div>
+                  </div>
+                )}
                 {checkoutError && (
                   <div className="mb-3 p-3 rounded-lg bg-red-50 border border-red-200 text-sm text-red-700">
                     {checkoutError}{' '}
@@ -423,7 +487,7 @@ export function CartDrawer() {
                   disabled={isSubmitting || checkoutBlocked}
                   className="w-full h-14 text-lg font-bold rounded-xl shadow-lg shadow-[#0a4d4d]/20 disabled:opacity-70"
                 >
-                  {isSubmitting ? 'Placing order...' : 'Place Order'}
+                  {isSubmitting ? 'Placing order...' : belowMin ? `EGP ${MIN_DELIVERY - subtotal} to go` : 'Place Order'}
                 </Button>
                 <p className="text-center text-xs text-gray-500 mt-4">
                   Beachside delivery across Marsa Baghush
