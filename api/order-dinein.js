@@ -1,6 +1,7 @@
 import https from 'https';
 import { createClient } from '@supabase/supabase-js';
 import crypto from 'crypto';
+import { sendOrderConfirmationEmail } from './email.js';
 
 // ── Supabase client (server-side) ─────────────────────────────────────────
 const supabaseUrl = process.env.VITE_SUPABASE_URL || 'https://mmjjphgzzhdifvkrokxz.supabase.co';
@@ -149,6 +150,12 @@ export default async function handler(req, res) {
       } catch (tgErr) {
         console.error('Telegram send error:', tgErr);
       }
+    }
+
+    // ── Send confirmation email to customer (if email provided) ────────
+    if (phone || name) {
+      // Dine-in may not have email — only send if we have one
+      // For now, skip email for dine-in unless we add email collection later
     }
 
     return res.status(200).json({

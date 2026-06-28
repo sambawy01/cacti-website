@@ -1,6 +1,7 @@
 import https from 'https';
 import { createClient } from '@supabase/supabase-js';
 import crypto from 'crypto';
+import { sendOrderConfirmationEmail } from './email.js';
 
 // ── Supabase client (server-side) ─────────────────────────────────────────
 const supabaseUrl = process.env.VITE_SUPABASE_URL || 'https://mmjjphgzzhdifvkrokxz.supabase.co';
@@ -144,6 +145,22 @@ export default async function handler(req, res) {
         console.error('Telegram send error:', tgErr);
       }
     }
+
+    // ── Send confirmation email to customer ─────────────────────────────
+    await sendOrderConfirmationEmail({
+      customer_email: email,
+      customer_name: name,
+      order_ref: orderId,
+      mode: 'delivery',
+      subtotal,
+      vat_amount: vat,
+      service_amount: service,
+      total,
+      delivery_slot: deliverySlot,
+      delivery_address: address,
+      items: items || [],
+      tracking_token: trackingToken,
+    });
 
     return res.status(200).json({
       ok: true,
