@@ -112,3 +112,44 @@ export async function placeOrderOnSite(input: OnSiteOrderInput): Promise<OnSiteO
     return { ok: false, error: 'Network error. Please try again.' };
   }
 }
+
+// ── Dine-in ordering (QR at table) ────────────────────────────────────────
+export interface DineInOrderInput {
+  tableId: string;
+  items: { name: string; quantity: number; price: number }[];
+  note?: string;
+  guestName?: string;
+  guestPhone?: string;
+}
+
+export interface DineInOrderResult {
+  ok: boolean;
+  orderId?: string;
+  trackingToken?: string;
+  tableLabel?: string;
+  total?: number;
+  error?: string;
+}
+
+export async function placeDineInOrder(input: DineInOrderInput): Promise<DineInOrderResult> {
+  try {
+    const res = await fetch('/api/order-dinein', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(input),
+    });
+    const json = await res.json().catch(() => ({}));
+    if (res.ok && json.ok) {
+      return {
+        ok: true,
+        orderId: json.orderId || '',
+        trackingToken: json.trackingToken || '',
+        tableLabel: json.tableLabel || '',
+        total: json.total || 0,
+      };
+    }
+    return { ok: false, error: json.error || 'Network error. Please try again.' };
+  } catch {
+    return { ok: false, error: 'Network error. Please try again.' };
+  }
+}

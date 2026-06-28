@@ -8,6 +8,7 @@ import { ReservationPage } from './pages/Reservation';
 import { EventsPage } from './pages/Events';
 import { AdminPage } from './pages/admin/AdminPage';
 import { TrackPage } from './pages/Track';
+import { DineInOrderPage } from './pages/DineInOrder';
 
 function App() {
   return (
@@ -21,6 +22,7 @@ function App() {
           <Route path="events" element={<EventsPage />} />
         </Route>
         <Route path="/track" element={<TrackPage />} />
+        <Route path="/order" element={<DineInOrderPage />} />
         <Route path="/admin" element={<AdminPage />} />
       </Routes>
     </BrowserRouter>
