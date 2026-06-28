@@ -1,7 +1,7 @@
 import React from 'react';
 import { Link } from 'react-router-dom';
 import { motion } from 'motion/react';
-import { Music, Sunset, Moon, MapPin, Clock, ArrowRight, Sparkles, Headphones, Disc3, Radio, Calendar } from 'lucide-react';
+import { Music, Sunset, Moon, MapPin, Clock, ArrowRight, Sparkles, Headphones, Disc3, Radio, Calendar, Check, Loader2 } from 'lucide-react';
 import { Button } from '../components/ui/button';
 
 const UPCOMING_EVENTS = [
@@ -240,6 +240,9 @@ export function EventsPage() {
         </div>
       </section>
 
+      {/* ============ BOOKING FORM ============ */}
+      <EventBookingForm />
+
       {/* ============ CTA ============ */}
       <section className="relative py-32 overflow-hidden bg-[#0a0a0a]">
         {/* Animated background glow */}
@@ -280,5 +283,213 @@ export function EventsPage() {
         </div>
       </section>
     </div>
+  );
+}
+
+// ── Event Booking Form ─────────────────────────────────────────────────────
+const EVENT_TYPES = [
+  'Sunset Session',
+  'Live Music Night',
+  'Private Dining',
+  'Full Venue Hire',
+  'Birthday / Celebration',
+  'Corporate Event',
+  'Other',
+];
+
+function EventBookingForm() {
+  const [form, setForm] = React.useState({
+    name: '', phone: '', email: '', eventType: '', eventDate: '', partySize: '', notes: '',
+  });
+  const [submitting, setSubmitting] = React.useState(false);
+  const [submitted, setSubmitted] = React.useState(false);
+  const [error, setError] = React.useState('');
+
+  const update = (field: string, value: string) => setForm(prev => ({ ...prev, [field]: value }));
+
+  const handleSubmit = async () => {
+    if (!form.name.trim() || !form.phone.trim() || !form.email.trim()) {
+      setError('Please fill in your name, phone, and email.');
+      return;
+    }
+    setSubmitting(true);
+    setError('');
+    try {
+      const res = await fetch('/api/event-booking', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(form),
+      });
+      const json = await res.json().catch(() => ({}));
+      if (res.ok && json.ok) {
+        setSubmitted(true);
+      } else {
+        setError(json.error || 'Something went wrong. Please try again.');
+      }
+    } catch {
+      setError('Network error. Please try again.');
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  const today = new Date();
+  const dateOptions = Array.from({ length: 90 }, (_, i) => {
+    const d = new Date(today);
+    d.setDate(today.getDate() + i);
+    const value = d.toISOString().split('T')[0];
+    const label = d.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' });
+    return { value, label };
+  });
+
+  if (submitted) {
+    return (
+      <section className="py-20 bg-[#f5f5f0]">
+        <div className="container mx-auto px-4 max-w-lg text-center">
+          <motion.div
+            initial={{ opacity: 0, scale: 0.9 }}
+            animate={{ opacity: 1, scale: 1 }}
+            className="bg-white rounded-3xl p-8 shadow-sm border border-gray-100"
+          >
+            <div className="w-16 h-16 mx-auto mb-4 rounded-full bg-green-100 flex items-center justify-center">
+              <Check className="w-8 h-8 text-green-600" />
+            </div>
+            <h3 className="font-montserrat font-bold text-2xl text-gray-800 mb-2">Enquiry Sent!</h3>
+            <p className="text-gray-500 mb-1">
+              Thanks, {form.name.split(' ')[0]}. We've received your enquiry and will get back to you
+            </p>
+            <p className="text-gray-500 mb-6">with a quote within 24 hours.</p>
+            <Button
+              onClick={() => { setSubmitted(false); setForm({ name: '', phone: '', email: '', eventType: '', eventDate: '', partySize: '', notes: '' }); }}
+              variant="outline"
+            >
+              Send Another Enquiry
+            </Button>
+          </motion.div>
+        </div>
+      </section>
+    );
+  }
+
+  return (
+    <section className="py-20 bg-[#f5f5f0]">
+      <div className="container mx-auto px-4 max-w-lg">
+        <div className="text-center mb-8">
+          <span className="text-[#0a4d4d] font-bold tracking-widest uppercase mb-3 block text-sm">Enquire Now</span>
+          <h2 className="font-serif text-3xl md:text-4xl font-bold text-[#0a0a0a] mb-3">Book an Event</h2>
+          <p className="text-gray-600">
+            Tell us what you're planning and we'll send you a personalised quote within 24 hours.
+          </p>
+        </div>
+
+        <div className="bg-white rounded-3xl p-8 shadow-sm border border-gray-100 space-y-4">
+          {/* Name + Phone */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div>
+              <label className="text-sm font-semibold text-gray-700 mb-1 block">Name *</label>
+              <input
+                type="text"
+                value={form.name}
+                onChange={e => update('name', e.target.value)}
+                placeholder="Your full name"
+                className="w-full p-3 rounded-lg border border-gray-200 bg-white text-sm focus:outline-none focus:ring-2 focus:ring-[#0a4d4d]/20 focus:border-[#0a4d4d]"
+              />
+            </div>
+            <div>
+              <label className="text-sm font-semibold text-gray-700 mb-1 block">Phone *</label>
+              <input
+                type="tel"
+                value={form.phone}
+                onChange={e => update('phone', e.target.value)}
+                placeholder="+20 122 128 8804"
+                className="w-full p-3 rounded-lg border border-gray-200 bg-white text-sm focus:outline-none focus:ring-2 focus:ring-[#0a4d4d]/20 focus:border-[#0a4d4d]"
+              />
+            </div>
+          </div>
+
+          {/* Email */}
+          <div>
+            <label className="text-sm font-semibold text-gray-700 mb-1 block">Email *</label>
+            <input
+              type="email"
+              value={form.email}
+              onChange={e => update('email', e.target.value)}
+              placeholder="you@example.com"
+              className="w-full p-3 rounded-lg border border-gray-200 bg-white text-sm focus:outline-none focus:ring-2 focus:ring-[#0a4d4d]/20 focus:border-[#0a4d4d]"
+            />
+          </div>
+
+          {/* Event Type + Date */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div>
+              <label className="text-sm font-semibold text-gray-700 mb-1 block">Event Type</label>
+              <select
+                value={form.eventType}
+                onChange={e => update('eventType', e.target.value)}
+                className="w-full p-3 rounded-lg border border-gray-200 bg-white text-sm font-medium text-gray-700 focus:outline-none focus:ring-2 focus:ring-[#0a4d4d]/20 focus:border-[#0a4d4d] appearance-none"
+              >
+                <option value="">Select type...</option>
+                {EVENT_TYPES.map(t => <option key={t} value={t}>{t}</option>)}
+              </select>
+            </div>
+            <div>
+              <label className="text-sm font-semibold text-gray-700 mb-1 block">Preferred Date</label>
+              <select
+                value={form.eventDate}
+                onChange={e => update('eventDate', e.target.value)}
+                className="w-full p-3 rounded-lg border border-gray-200 bg-white text-sm font-medium text-gray-700 focus:outline-none focus:ring-2 focus:ring-[#0a4d4d]/20 focus:border-[#0a4d4d] appearance-none"
+              >
+                <option value="">Pick a date...</option>
+                {dateOptions.map(d => <option key={d.value} value={d.value}>{d.label}</option>)}
+              </select>
+            </div>
+          </div>
+
+          {/* Party Size */}
+          <div>
+            <label className="text-sm font-semibold text-gray-700 mb-1 block">Party Size</label>
+            <input
+              type="number"
+              value={form.partySize}
+              onChange={e => update('partySize', e.target.value)}
+              placeholder="Number of guests"
+              min="1"
+              className="w-full p-3 rounded-lg border border-gray-200 bg-white text-sm focus:outline-none focus:ring-2 focus:ring-[#0a4d4d]/20 focus:border-[#0a4d4d]"
+            />
+          </div>
+
+          {/* Notes */}
+          <div>
+            <label className="text-sm font-semibold text-gray-700 mb-1 block">Notes</label>
+            <textarea
+              value={form.notes}
+              onChange={e => update('notes', e.target.value)}
+              placeholder="Tell us about your event — vibe, budget range, special requests..."
+              rows={3}
+              className="w-full p-3 rounded-lg border border-gray-200 bg-white text-sm focus:outline-none focus:ring-2 focus:ring-[#0a4d4d]/20 focus:border-[#0a4d4d] resize-none"
+            />
+          </div>
+
+          {error && (
+            <p className="text-sm text-red-600 bg-red-50 border border-red-200 rounded-lg p-3">{error}</p>
+          )}
+
+          <Button
+            onClick={handleSubmit}
+            disabled={submitting}
+            className="w-full h-14 text-lg font-bold rounded-xl shadow-lg shadow-[#0a4d4d]/20 disabled:opacity-60"
+          >
+            {submitting ? (
+              <><Loader2 className="w-5 h-5 mr-2 animate-spin" /> Sending...</>
+            ) : (
+              'Send Enquiry'
+            )}
+          </Button>
+          <p className="text-center text-xs text-gray-400">
+            No payment now — we'll review and send you a quote.
+          </p>
+        </div>
+      </div>
+    </section>
   );
 }
