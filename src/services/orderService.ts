@@ -120,6 +120,7 @@ export interface DineInOrderInput {
   note?: string;
   guestName?: string;
   guestPhone?: string;
+  paymentMethod?: string;
 }
 
 export interface DineInOrderResult {
@@ -136,7 +137,10 @@ export async function placeDineInOrder(input: DineInOrderInput): Promise<DineInO
     const res = await fetch('/api/order-dinein', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(input),
+      body: JSON.stringify({
+        ...input,
+        paymentMethod: input.paymentMethod || 'cash_on_site',
+      }),
     });
     const json = await res.json().catch(() => ({}));
     if (res.ok && json.ok) {

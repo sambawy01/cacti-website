@@ -11,6 +11,66 @@ const supabase = supabaseKey
   ? createClient(supabaseUrl, supabaseKey, { auth: { persistSession: false } })
   : null;
 
+/**
+ * Check if a phone number was verified recently (within 30 minutes).
+ */
+async function isPhoneVerified(phone) {
+  if (!supabase || !phone) return false;
+  const phoneClean = phone.replace(/[\s\-\(\)]/g, '');
+  const { data } = await supabase
+    .from('verified_phones')
+    .select('phone, verified_at')
+    .eq('phone', phoneClean)
+    .gte('verified_at', new Date(Date.now() - 30 * 60 * 1000).toISOString())
+    .maybeSingle();
+  return !!data;
+}
+
+/**
+ * Push order to Foodics POS (fire-and-forget, non-blocking).
+ * Logs success/failure but doesn't block the order response.
+ */
+async function pushToFoodics(orderData) {
+  try {
+    const foodicsUrl = process.env.VERCEL_URL
+      ? `https://${process.env.VERCEL_URL}/api/foodics-push`
+      : null;
+
+    // In production, call the foodics-push API directly
+    // For now, we just log — the foodics-push.js route handles the actual API call
+    if (foodicsUrl) {
+      const https = require('https');
+      const url = new URL(foodicsUrl);
+      const postData = JSON.stringify(orderData);
+      return new Promise((resolve) => {
+        const req = https.request({
+          hostname: url.hostname,
+          path: url.pathname,
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Content-Length': Buffer.byteLength(postData),
+          },
+        }, (response) => {
+          let data = '';
+          response.on('data', chunk => { data += chunk; });
+          response.on('end', () => {
+            try { resolve(JSON.parse(data)); }
+            catch { resolve({ ok: false }); }
+          });
+        });
+        req.on('error', () => resolve({ ok: false }));
+        req.write(postData);
+        req.end();
+      });
+    }
+    return { ok: false, dev_mode: true };
+  } catch (e) {
+    console.error('[DineIn] Foodics push error:', e.message);
+    return { ok: false };
+  }
+}
+
 export default async function handler(req, res) {
   if (req.method === 'OPTIONS') {
     return res.status(200).end();
@@ -21,13 +81,25 @@ export default async function handler(req, res) {
   }
 
   try {
-    const { tableId, items, name, phone, note } = req.body;
+    const { tableId, items, name, phone, note, paymentMethod } = req.body;
 
     if (!tableId) {
       return res.status(400).json({ ok: false, error: 'Missing table ID' });
     }
     if (!items || !Array.isArray(items) || items.length === 0) {
       return res.status(400).json({ ok: false, error: 'No items in order' });
+    }
+
+    // ── Phone verification gate ──────────────────────────────────────────
+    if (phone) {
+      const verified = await isPhoneVerified(phone);
+      if (!verified) {
+        return res.status(403).json({
+          ok: false,
+          code: 'phone_not_verified',
+          error: 'Phone number not verified. Please complete OTP verification first.',
+        });
+      }
     }
 
     // ── Look up the table ────────────────────────────────────────────────
@@ -77,7 +149,7 @@ export default async function handler(req, res) {
           vat_amount: vat,
           service_amount: service,
           total,
-          payment_method: 'cash_on_site',
+          payment_method: paymentMethod || 'cash_on_site',
           tracking_token: trackingToken,
         })
         .select('id')
@@ -88,6 +160,25 @@ export default async function handler(req, res) {
       } else if (data) {
         dbId = data.id;
       }
+    }
+
+    // ── Push to Foodics POS (non-blocking) ─────────────────────────────────
+    const foodicsResult = await pushToFoodics({
+      orderRef: orderId,
+      orderDbId: dbId,
+      tableId,
+      tableLabel,
+      items,
+      subtotal,
+      vatAmount: vat,
+      serviceAmount: service,
+      total,
+      customerName: name,
+      customerPhone: phone,
+      note,
+    });
+    if (foodicsResult?.ok) {
+      console.log('[DineIn] Foodics sync OK for', orderId);
     }
 
     // ── Telegram notification ─────────────────────────────────────────────
@@ -166,6 +257,7 @@ export default async function handler(req, res) {
       dbId,
       tableLabel,
       total,
+      paymentMethod: paymentMethod || 'cash_on_site',
     });
   } catch (err) {
     console.error('Dine-in order API error:', err);
