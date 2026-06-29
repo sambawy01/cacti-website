@@ -7,6 +7,7 @@ import { useMenuData } from '../data/useMenuData';
 import { placeDineInOrder, DineInOrderResult } from '../../services/orderService';
 import { supabase } from '../../lib/supabase';
 import { toast } from 'sonner';
+import { API_BASE } from '../../lib/apiConfig';
 
 // ── Types ──────────────────────────────────────────────────────────────────
 interface CartItem {
@@ -157,7 +158,7 @@ export function DineInOrderPage() {
     if (paymentMethod !== 'cash_on_site') {
       try {
         const tempOrderRef = `D${Date.now().toString(36).toUpperCase()}`;
-        const intentRes = await fetch('/api/paymob-intent', {
+        const intentRes = await fetch(`${API_BASE}/api/paymob-intent`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
@@ -608,7 +609,7 @@ function OtpGate({ tableLabel, zoneEmoji, zoneLabel, onVerified }: {
 
     setSending(true);
     try {
-      const res = await fetch('/api/otp-send', {
+      const res = await fetch(`${API_BASE}/api/otp-send`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ phone }),
@@ -639,7 +640,7 @@ function OtpGate({ tableLabel, zoneEmoji, zoneLabel, onVerified }: {
 
     setVerifying(true);
     try {
-      const res = await fetch('/api/otp-verify', {
+      const res = await fetch(`${API_BASE}/api/otp-verify`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ phone, code }),
@@ -831,7 +832,7 @@ function OrderStatusTracker({ orderRef, tableLabel, total, trackingToken, onPlac
 
     const fetchStatus = async () => {
       try {
-        const res = await fetch(`/api/track?token=${encodeURIComponent(trackingToken)}`);
+        const res = await fetch(`${API_BASE}/api/track?token=${encodeURIComponent(trackingToken)}`);
         if (res.ok) {
           const data = await res.json();
           if (data?.status) setCurrentStatus(data.status);

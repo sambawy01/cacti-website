@@ -3,9 +3,7 @@ import { useSearchParams, Link } from 'react-router-dom';
 import { motion } from 'motion/react';
 import { Star, ArrowLeft, Check, Loader2 } from 'lucide-react';
 
-const BASE_URL =
-  (import.meta.env.VITE_ORDERS_API_BASE as string | undefined) ||
-  'https://cacti-website-mauve.vercel.app';
+import { API_BASE } from '../../lib/apiConfig';
 
 export function FeedbackPage() {
   const [searchParams] = useSearchParams();
@@ -29,7 +27,7 @@ export function FeedbackPage() {
     setSubmitting(true);
     setError(null);
     try {
-      const res = await fetch(`${BASE_URL}/api/feedback`, {
+      const res = await fetch(`${API_BASE}/api/feedback`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({

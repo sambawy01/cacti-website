@@ -1,0 +1,7 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="app_name">Cacti</string>
+    <string name="title_activity_main">Cacti</string>
+    <string name="package_name">com.cacti.ordering</string>
+    <string name="custom_url_scheme">com.cacti.ordering</string>
+</resources>

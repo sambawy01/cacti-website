@@ -14,3 +14,16 @@ node_modules/
 dist/
 node_modules/
 supabase/.temp/
+
+# Capacitor native platforms
+android/app/build/
+android/.gradle/
+android/local.properties
+android/captures/
+ios/App/App/Private/
+ios/App/Pods/
+ios/App/output/
+*.apk
+*.aab
+*.ipa
+

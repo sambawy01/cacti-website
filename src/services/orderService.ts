@@ -1,4 +1,5 @@
 /**
+import { API_BASE } from '../lib/apiConfig';
  * Customer-facing order API — sends orders to our Vercel serverless endpoint
  * which forwards to Telegram. No more dead backend.
  */
@@ -54,7 +55,7 @@ export async function getAvailability(): Promise<Availability | null> {
 
 export async function getOrderStatus(token: string): Promise<TrackedOrder | null> {
   try {
-    const res = await fetch(`/api/track?token=${encodeURIComponent(token)}`);
+    const res = await fetch(`${API_BASE}/api/track?token=${encodeURIComponent(token)}`);
     if (!res.ok) return null;
     const data = await res.json();
     if (!data || data.error) return null;
@@ -92,7 +93,7 @@ export type OnSiteOrderResult =
 
 export async function placeOrderOnSite(input: OnSiteOrderInput): Promise<OnSiteOrderResult> {
   try {
-    const res = await fetch('/api/order', {
+    const res = await fetch(`${API_BASE}/api/order`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(input),
@@ -134,7 +135,7 @@ export interface DineInOrderResult {
 
 export async function placeDineInOrder(input: DineInOrderInput): Promise<DineInOrderResult> {
   try {
-    const res = await fetch('/api/order-dinein', {
+    const res = await fetch(`${API_BASE}/api/order-dinein`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({

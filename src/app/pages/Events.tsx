@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom';
 import { motion } from 'motion/react';
 import { Music, Sunset, Moon, MapPin, Clock, ArrowRight, Sparkles, Headphones, Disc3, Radio, Calendar, Check, Loader2 } from 'lucide-react';
 import { Button } from '../components/ui/button';
+import { API_BASE } from '../../lib/apiConfig';
 
 const UPCOMING_EVENTS = [
   {
@@ -315,7 +316,7 @@ function EventBookingForm() {
     setSubmitting(true);
     setError('');
     try {
-      const res = await fetch('/api/event-booking', {
+      const res = await fetch(`${API_BASE}/api/event-booking`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(form),

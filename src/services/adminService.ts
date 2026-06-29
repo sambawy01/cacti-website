@@ -1,4 +1,5 @@
 const ADMIN_ENDPOINT = 'https://script.google.com/macros/s/AKfycbzN-s2iKeyjIC_k-wyNzj6QHOO5eoW14EqWo7fC4kYzYzqyMOygZpCDPpyqPVxhFA/exec';
+import { API_BASE } from '../lib/apiConfig';
 const STORAGE_KEY = 'bc-admin-pw';
 const ROLE_KEY = 'bc-admin-role';
 
@@ -290,7 +291,7 @@ export interface SupabaseEvent {
 }
 
 async function adminFetch<T>(password: string, action: string): Promise<T> {
-  const res = await fetch(`/api/admin?action=${action}`, {
+  const res = await fetch(`${API_BASE}/api/admin?action=${action}`, {
     headers: { Authorization: `Bearer ${password}` },
   });
   if (!res.ok) throw new Error(`HTTP ${res.status}`);
@@ -300,7 +301,7 @@ async function adminFetch<T>(password: string, action: string): Promise<T> {
 }
 
 async function adminUpdate(password: string, action: string, body: Record<string, unknown>): Promise<void> {
-  const res = await fetch(`/api/admin?action=${action}`, {
+  const res = await fetch(`${API_BASE}/api/admin?action=${action}`, {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',

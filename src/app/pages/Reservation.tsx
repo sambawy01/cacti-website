@@ -3,6 +3,7 @@ import { Umbrella, UtensilsCrossed, Calendar, Clock, Users, Mail, Phone, User } 
 import { Button } from '../components/ui/button';
 import { motion, AnimatePresence } from 'motion/react';
 import { toast } from 'sonner';
+import { API_BASE } from '../../lib/apiConfig';
 
 type ReservationType = 'beach' | 'restaurant';
 
@@ -86,7 +87,7 @@ export function ReservationPage() {
 
     setIsSubmitting(true);
     try {
-      const res = await fetch('/api/reservation', {
+      const res = await fetch(`${API_BASE}/api/reservation`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(form),

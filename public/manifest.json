@@ -1,0 +1,27 @@
+{
+  "name": "Cacti Ordering",
+  "short_name": "Cacti",
+  "description": "Cacti — Mediterranean beach restaurant & bar ordering app",
+  "start_url": "/",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#0a0a0a",
+  "theme_color": "#0a4d4d",
+  "icons": [
+    {
+      "src": "/cacti-logo.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "/cacti-logo-white.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any"
+    }
+  ],
+  "categories": ["food", "lifestyle"],
+  "lang": "en",
+  "dir": "ltr"
+}
