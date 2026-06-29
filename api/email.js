@@ -58,11 +58,15 @@ export async function sendOrderConfirmationEmail(order) {
 
   const trackingUrl = `https://cacti.restaurant/track?token=${tracking_token}`;
 
+  // Logo hosted on the deployed site — referenced by absolute URL so it
+  // renders inside email clients. Using the Vercel domain (stable).
+  const logoUrl = 'https://cacti-website-mauve.vercel.app/cacti-logo-header-white.png';
+
   const html = `
   <div style="max-width:480px;margin:0 auto;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;color:#333;">
     <div style="background:#0a0a0a;padding:24px;border-radius:12px 12px 0 0;text-align:center;">
-      <h1 style="color:#fff;font-size:24px;margin:0;font-weight:700;">Cacti</h1>
-      <p style="color:#0a4d4d;margin:4px 0 0;font-size:14px;">Mediterranean · Marsa Baghush</p>
+      <img src="${logoUrl}" alt="Cacti" style="max-width:180px;height:auto;margin:0 auto 4px;display:block;" />
+      <p style="color:#0a4d4d;margin:0;font-size:14px;">Mediterranean · Marsa Baghush</p>
     </div>
     <div style="background:#fff;padding:24px;border:1px solid #eee;border-top:none;border-radius:0 0 12px 12px;">
       <h2 style="font-size:18px;margin:0 0 4px;">${mode === 'dine_in' ? '🍽️ Order sent to kitchen!' : '🛒 Order received!'}</h2>
@@ -110,10 +114,12 @@ export async function sendStatusUpdateEmail(order, newStatus) {
 
   const trackingUrl = `https://cacti.restaurant/track?token=${tracking_token}`;
 
+  const logoUrl = 'https://cacti-website-mauve.vercel.app/cacti-logo-header-white.png';
+
   const html = `
   <div style="max-width:480px;margin:0 auto;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;color:#333;">
     <div style="background:#0a0a0a;padding:24px;border-radius:12px 12px 0 0;text-align:center;">
-      <h1 style="color:#fff;font-size:24px;margin:0;font-weight:700;">Cacti</h1>
+      <img src="${logoUrl}" alt="Cacti" style="max-width:180px;height:auto;margin:0 auto 4px;display:block;" />
     </div>
     <div style="background:#fff;padding:24px;border:1px solid #eee;border-top:none;border-radius:0 0 12px 12px;">
       <h2 style="font-size:18px;margin:0 0 4px;">${msg.title}</h2>

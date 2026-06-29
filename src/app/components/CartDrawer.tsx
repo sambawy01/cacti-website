@@ -1,10 +1,11 @@
 import React from 'react'
 import { useCart } from '../context/CartContext';
 import { Button } from './ui/button';
-import { Minus, Plus, Trash2, ShoppingBag } from 'lucide-react';
+import { Minus, Plus, Trash2, ShoppingBag, MapPin } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { toast } from 'sonner';
 import { getAvailability, slotLabel, placeOrderOnSite, Availability, SlotInfo } from '../../services/orderService';
+import { MapPickerModal, loadAddressBook, saveAddressBook, SavedAddress } from './MapPickerModal';
 
 const MIN_DELIVERY = 2000;
 const VAT_RATE = 0.14;
@@ -54,6 +55,8 @@ export function CartDrawer() {
   const [isSubmitting, setIsSubmitting] = React.useState(false);
   const [orderResult, setOrderResult] = React.useState<import('../../services/orderService').OnSiteOrderResult | null>(null);
   const [checkoutError, setCheckoutError] = React.useState<string | null>(null);
+  const [mapPickerOpen, setMapPickerOpen] = React.useState(false);
+  const [savedAddresses, setSavedAddresses] = React.useState<SavedAddress[]>([]);
 
   const applyAvailability = React.useCallback((a: Availability | null) => {
     setAvailability(a);
@@ -70,6 +73,7 @@ export function CartDrawer() {
     setOrderResult(null);
     setCheckoutError(null);
     setPrefilled(!!(localStorage.getItem('bc_name') && localStorage.getItem('bc_phone')));
+    setSavedAddresses(loadAddressBook());
     let cancelled = false;
     setAvailLoading(true);
     getAvailability()
@@ -325,6 +329,30 @@ export function CartDrawer() {
 
                 <div className="mb-6">
                   <h3 className="font-bold text-gray-800 mb-3 text-sm">Delivery Address <span className="text-[#0a4d4d]">*</span></h3>
+
+                  {/* Saved addresses quick-pick */}
+                  {savedAddresses.length > 0 && (
+                    <div className="mb-2">
+                      <label className="text-xs text-gray-500 mb-1 block">Saved addresses</label>
+                      <select
+                        onChange={(e) => {
+                          const addr = savedAddresses.find(a => a.id === e.target.value);
+                          if (addr) {
+                            setAddress(addr.address);
+                            setLocation(addr.mapsLink || addr.location);
+                          }
+                        }}
+                        defaultValue=""
+                        className="w-full p-2.5 rounded-lg border border-gray-200 bg-white text-sm font-medium text-gray-700 focus:outline-none focus:ring-2 focus:ring-[#0a4d4d]/20 focus:border-[#0a4d4d] appearance-none mb-2"
+                      >
+                        <option value="" disabled>Select a saved address…</option>
+                        {savedAddresses.map(a => (
+                          <option key={a.id} value={a.id}>{a.name} — {a.address.slice(0, 40)}{a.address.length > 40 ? '…' : ''}</option>
+                        ))}
+                      </select>
+                    </div>
+                  )}
+
                   <textarea
                     value={address}
                     onChange={(e) => setAddress(e.target.value)}
@@ -337,15 +365,55 @@ export function CartDrawer() {
                 </div>
 
                 <div className="mb-6">
-                  <h3 className="font-bold text-gray-800 mb-3 text-sm">📍 Location / Google Maps link <span className="font-normal text-gray-500">(optional)</span></h3>
-                  <input
-                    type="text"
-                    value={location}
-                    onChange={(e) => setLocation(e.target.value)}
-                    placeholder="Paste a Google Maps link or describe your spot"
-                    className="w-full p-3 rounded-lg border border-gray-200 bg-white text-sm focus:outline-none focus:ring-2 focus:ring-[#0a4d4d]/20 focus:border-[#0a4d4d]"
-                  />
+                  <h3 className="font-bold text-gray-800 mb-3 text-sm">📍 Location on Map <span className="font-normal text-gray-500">(recommended)</span></h3>
+
+                  {/* Location display + pick button */}
+                  <div className="space-y-2">
+                    {location && (
+                      <div className="flex items-start gap-2 bg-[#f5f5f0] rounded-lg p-2.5">
+                        <MapPin className="w-4 h-4 text-[#0a4d4d] shrink-0 mt-0.5" />
+                        <a
+                          href={location.startsWith('http') ? location : `https://www.google.com/maps?q=${location}`}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="text-xs text-[#0a4d4d] underline break-all flex-1"
+                        >
+                          {location.length > 60 ? location.slice(0, 60) + '…' : location}
+                        </a>
+                      </div>
+                    )}
+                    <button
+                      type="button"
+                      onClick={() => setMapPickerOpen(true)}
+                      className="w-full flex items-center justify-center gap-2 py-2.5 border-2 border-[#0a4d4d]/30 rounded-xl text-sm font-semibold text-[#0a4d4d] hover:bg-[#0a4d4d]/5 transition-colors"
+                    >
+                      <MapPin className="w-4 h-4" />
+                      {location ? 'Change location on map' : 'Pick location on map'}
+                    </button>
+                    <input
+                      type="text"
+                      value={location}
+                      onChange={(e) => setLocation(e.target.value)}
+                      placeholder="Or paste a Google Maps link manually"
+                      className="w-full p-2.5 rounded-lg border border-gray-200 bg-white text-xs focus:outline-none focus:ring-2 focus:ring-[#0a4d4d]/20 focus:border-[#0a4d4d]"
+                    />
+                  </div>
                 </div>
+
+                {/* Map picker modal */}
+                <MapPickerModal
+                  open={mapPickerOpen}
+                  onClose={() => setMapPickerOpen(false)}
+                  initialLocation={location}
+                  initialAddress={address}
+                  onConfirm={(data) => {
+                    setLocation(data.location);
+                    if (data.address && (!address || address.length < 10)) {
+                      setAddress(data.address);
+                    }
+                    setSavedAddresses(loadAddressBook());
+                  }}
+                />
 
                 <div className="mb-6">
                   <h3 className="font-bold text-gray-800 mb-3 text-sm">Payment Method</h3>
