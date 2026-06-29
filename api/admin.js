@@ -1,5 +1,8 @@
 import { createClient } from '@supabase/supabase-js';
-import { sendStatusUpdateEmail } from './email.js';
+
+// Note: We no longer send status-update emails. The customer gets a single
+// confirmation email at order placement with a tracking link and feedback
+// link. They use the tracking link to see live status updates.
 
 const supabaseUrl = process.env.VITE_SUPABASE_URL || 'https://mmjjphgzzhdifvkrokxz.supabase.co';
 const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
@@ -81,16 +84,7 @@ export default async function handler(req, res) {
           const { error } = await supabase.from('orders').update(updates).eq('id', id);
           if (error) return res.status(500).json({ error: error.message });
 
-          // ── Send status update email to customer ──────────────────────
-          const { data: orderData } = await supabase
-            .from('orders')
-            .select('customer_email, customer_name, order_ref, tracking_token')
-            .eq('id', id)
-            .single();
-          if (orderData && orderData.customer_email) {
-            await sendStatusUpdateEmail(orderData, status);
-          }
-
+          // No status-update email — customer tracks via /track?token=...
           return res.status(200).json({ ok: true });
         }
         case 'update_reservation': {

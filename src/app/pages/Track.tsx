@@ -150,6 +150,19 @@ export function TrackPage() {
           </div>
         </div>
 
+        {/* Feedback link — show when delivered or served */}
+        {(order.status === 'delivered' || order.status === 'served') && (
+          <div className="bg-white rounded-2xl p-6 shadow-sm border border-gray-100 mb-6 text-center">
+            <p className="text-gray-700 text-sm mb-3">How was your experience?</p>
+            <Link
+              to={`/feedback?token=${token}`}
+              className="inline-flex items-center gap-2 bg-[#0a4d4d] text-white font-semibold px-6 py-3 rounded-xl hover:bg-[#0a4d4d]/90 transition-colors"
+            >
+              ⭐ Leave Feedback
+            </Link>
+          </div>
+        )}
+
         {/* Back to menu */}
         <Link
           to="/menu"

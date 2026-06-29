@@ -9,6 +9,7 @@ import { EventsPage } from './pages/Events';
 import { AdminPage } from './pages/admin/AdminPage';
 import { TrackPage } from './pages/Track';
 import { DineInOrderPage } from './pages/DineInOrder';
+import { FeedbackPage } from './pages/Feedback';
 
 function App() {
   return (
@@ -23,6 +24,7 @@ function App() {
         </Route>
         <Route path="/track" element={<TrackPage />} />
         <Route path="/order" element={<DineInOrderPage />} />
+        <Route path="/feedback" element={<FeedbackPage />} />
         <Route path="/admin" element={<AdminPage />} />
       </Routes>
     </BrowserRouter>
